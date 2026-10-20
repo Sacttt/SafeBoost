@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  static:
+    name: Static safety checks
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate catalog, app lists, syntax
+        shell: powershell
+        run: .\Tests\Validate.ps1
+      - name: PSScriptAnalyzer (errors only)
+        shell: powershell
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $r = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error
+          $r | Format-Table -AutoSize
+          if ($r) { exit 1 }
+
+  roundtrip:
+    name: Apply + Undo round trip on real Windows
+    needs: static
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dry run (must change nothing)
+        shell: powershell
+        run: .\SafeBoost.ps1 -Preset Max -DryRun -Silent -NoAppRemoval
+      - name: PC analyzer
+        shell: powershell
+        run: .\SafeBoost.ps1 -Analyze
+      - name: Apply everything, undo everything, compare
+        shell: powershell
+        run: .\Tests\RoundTrip.ps1
