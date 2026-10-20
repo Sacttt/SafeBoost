@@ -675,13 +675,22 @@ function Save-SBRender([string]$Path) {
     $window.UpdateLayout()
     $window.Dispatcher.Invoke([action]{ }, [Windows.Threading.DispatcherPriority]::ApplicationIdle)
     $el = $ui.RootBorder
+    if ($el.ActualWidth -lt 100 -or $el.ActualHeight -lt 100) {
+        # Window could not be laid out by the desktop (headless machine) - lay it out ourselves.
+        $size = New-Object Windows.Size 1240, 800
+        $el.Measure($size)
+        $el.Arrange((New-Object Windows.Rect 0, 0, 1240, 800))
+        $el.UpdateLayout()
+        $window.Dispatcher.Invoke([action]{ }, [Windows.Threading.DispatcherPriority]::ApplicationIdle)
+    }
+    if ($env:GITHUB_ACTIONS) { Write-Host "::notice::Render $([IO.Path]::GetFileName($Path)): $($el.ActualWidth) x $($el.ActualHeight)" }
     $scale = 1.5
     $rtb = New-Object Windows.Media.Imaging.RenderTargetBitmap ([int]($el.ActualWidth * $scale)), ([int]($el.ActualHeight * $scale)), (96 * $scale), (96 * $scale), ([Windows.Media.PixelFormats]::Pbgra32)
     $rtb.Render($el)
     $enc = New-Object Windows.Media.Imaging.PngBitmapEncoder
     $enc.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($rtb))
     $fs = [IO.File]::Create($Path)
-    try { $enc.Save($fs) } finally { $fs.Close() }
+    try { $enc.Save($fs) } catch { Write-Host "::error::Saving $Path failed: $($_.Exception.Message)" } finally { $fs.Close() }
     Write-Host "Saved $Path"
 }
 
@@ -699,9 +708,10 @@ if ($Screenshot) {
     Complete-Apply @($r)[-1] $null
     $global:SBLogQueue = $script:LogQueue
 
-    $window.WindowStartupLocation = 'Manual'; $window.Left = -30000; $window.Top = -30000
+    $window.WindowStartupLocation = 'Manual'; $window.Left = 0; $window.Top = 0
+    $window.Width = 1240; $window.Height = 800
     $window.ShowInTaskbar = $false; $window.ShowActivated = $false
-    $window.Show()
+    try { $window.Show() } catch { Write-Host "::warning::Window.Show failed: $($_.Exception.Message)" }
     foreach ($th in 'Dark', 'Light') {
         Set-SBTheme $th
         foreach ($pg in $script:Pages) {
