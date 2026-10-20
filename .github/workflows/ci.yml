@@ -10,7 +10,7 @@ jobs:
     name: Static safety checks
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate catalog, app lists, syntax
         shell: powershell
         run: .\Tests\Validate.ps1
@@ -26,8 +26,10 @@ jobs:
     name: Apply + Undo round trip on real Windows
     needs: static
     runs-on: windows-latest
+    env:
+      SAFEBOOST_CI: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Dry run (must change nothing)
         shell: powershell
         run: .\SafeBoost.ps1 -Preset Max -DryRun -Silent -NoAppRemoval
@@ -37,3 +39,10 @@ jobs:
       - name: Apply everything, undo everything, compare
         shell: powershell
         run: .\Tests\RoundTrip.ps1
+      - name: Show SafeBoost logs as annotations on failure
+        if: failure()
+        shell: powershell
+        run: |
+          Get-ChildItem C:\ProgramData\SafeBoost -Recurse -Filter '*log*' -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-Content $_.FullName | Where-Object { $_ -match 'ERR|WARN' } | Select-Object -First 30 | ForEach-Object { Write-Host "::warning::$_" }
+          }

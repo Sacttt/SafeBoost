@@ -30,12 +30,12 @@ $during = Get-State
 
 $changed = @($before.Keys | Where-Object { $before[$_] -ne $during[$_] })
 Write-Host "Values changed by SafeBoost: $($changed.Count)"
-if ($changed.Count -lt 10) { throw "Expected SafeBoost to change many values, only $($changed.Count) changed" }
+if ($changed.Count -lt 10) { Write-Host "::error::Only $($changed.Count) values changed"; throw "Expected SafeBoost to change many values, only $($changed.Count) changed" }
 
 & "$root\Restore.ps1" -All -Silent
 $after = Get-State
 
 $diff = @($before.Keys | Where-Object { $before[$_] -ne $after[$_] })
-foreach ($k in $diff) { Write-Host "NOT RESTORED: $k`n   before: $($before[$k])`n   after : $($after[$k])" -ForegroundColor Red }
+foreach ($k in $diff) { Write-Host "::error::NOT RESTORED: $k | before: $($before[$k]) | after: $($after[$k])" }
 if ($diff.Count) { throw "$($diff.Count) value(s) were not restored exactly" }
-Write-Host "Round trip OK: $($changed.Count) changes applied and all restored exactly." -ForegroundColor Green
+Write-Host "::notice::Round trip OK: $($changed.Count) changes applied and all restored exactly." -ForegroundColor Green

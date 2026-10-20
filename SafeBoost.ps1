@@ -55,7 +55,12 @@ if (-not (Test-SBAdmin)) {
 }
 
 $os = Get-CimInstance Win32_OperatingSystem
-if ($os.ProductType -ne 1) { Write-Host 'This is Windows Server - SafeBoost only supports Windows 10/11 desktop editions.' -ForegroundColor Red; exit 1 }
+if ($os.ProductType -ne 1 -and $env:SAFEBOOST_CI -ne '1') {
+    # (SAFEBOOST_CI is only set by the automated test pipeline, whose test machines run Windows Server)
+    Write-Host 'This is Windows Server - SafeBoost only supports Windows 10/11 desktop editions.' -ForegroundColor Red
+    if ($env:GITHUB_ACTIONS) { Write-Host '::error::Blocked: Windows Server detected' }
+    exit 1
+}
 $build = Get-SBWindowsBuild
 if ($build -lt 19041) {
     Write-Host "Windows build $build is very old (before Windows 10 2004). SafeBoost is only tested on 19041+." -ForegroundColor Red
