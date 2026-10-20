@@ -119,3 +119,27 @@ function Show-SBReport {
         Write-Host "  Report saved: $SaveTo" -ForegroundColor DarkGray
     }
 }
+
+function Get-SBSystemInfo {
+    $build = Get-SBWindowsBuild
+    $cv = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    $os = Get-CimInstance Win32_OperatingSystem
+    $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+    $gpu = @(Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Remote|Parsec|Meta Virtual' }) |
+           Sort-Object { if ($_.Name -match 'NVIDIA|Radeon|Arc') { 0 } else { 1 } } | Select-Object -First 1
+    $mods = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    $ramGB = [math]::Round($os.TotalVisibleMemorySize / 1MB)
+    $speed = ($mods | Measure-Object ConfiguredClockSpeed -Minimum).Minimum
+    $sys = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
+    [pscustomobject]@{
+        Windows       = $(if ($build -ge 22000) { 'Windows 11' } else { 'Windows 10' })
+        WindowsDetail = "$($cv.DisplayVersion) - build $build".Trim(' -')
+        Cpu           = ($cpu.Name -replace '\(R\)|\(TM\)|CPU|Processor|\s+@.*$', '' -replace '\s+', ' ').Trim()
+        CpuDetail     = "$($cpu.NumberOfCores) cores / $($cpu.NumberOfLogicalProcessors) threads"
+        Gpu           = $(if ($gpu) { $gpu.Name } else { 'Unknown' })
+        GpuDetail     = $(if ($gpu -and $gpu.CurrentRefreshRate) { "$($gpu.CurrentRefreshRate) Hz - driver $($gpu.DriverVersion)" } elseif ($gpu) { "driver $($gpu.DriverVersion)" } else { '' })
+        Ram           = "$ramGB GB"
+        RamDetail     = $(if ($speed) { "$($mods.Count) module(s) at $speed MT/s" } else { "$($mods.Count) module(s)" })
+        Disk          = $(if ($sys) { "$([math]::Round($sys.FreeSpace/1GB)) GB free" } else { '' })
+    }
+}

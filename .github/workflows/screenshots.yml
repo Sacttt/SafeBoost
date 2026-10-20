@@ -1,0 +1,39 @@
+name: Screenshots
+
+# Launches the real SafeBoost app on a Windows machine, renders every page
+# (light + dark) and commits the images to docs/screenshots for the README.
+on:
+  push:
+    branches: [main]
+    paths: ['SafeBoostGUI.ps1', 'lib/**', 'config/**', '.github/workflows/screenshots.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screenshots
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Render app pages
+        shell: powershell
+        run: |
+          .\SafeBoostGUI.ps1 -Screenshot "$PWD\docs\screenshots"
+          $png = @(Get-ChildItem docs\screenshots\*.png)
+          if ($png.Count -lt 10) { Write-Host "::error::Expected 10 screenshots, got $($png.Count)"; exit 1 }
+          $png | ForEach-Object { Write-Host "::notice::$($_.Name) $([math]::Round($_.Length/1KB)) KB" }
+      - name: Commit screenshots
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Update app screenshots [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main

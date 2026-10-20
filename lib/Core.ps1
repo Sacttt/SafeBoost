@@ -34,7 +34,8 @@ function Write-SBLog {
     )
     $colors = @{ INFO='Gray'; OK='Green'; WARN='Yellow'; ERR='Red'; SKIP='DarkGray'; DRY='Cyan'; STEP='Magenta' }
     $line = '[{0}] [{1,-4}] {2}' -f (Get-Date -Format 'HH:mm:ss'), $Level, $Message
-    Write-Host $line -ForegroundColor $colors[$Level]
+    if ($null -ne $global:SBLogQueue) { $global:SBLogQueue.Enqueue($line) }
+    else { Write-Host $line -ForegroundColor $colors[$Level] }
     if ($script:SB.LogFile) {
         try { Add-Content -LiteralPath $script:SB.LogFile -Value $line -Encoding UTF8 -ErrorAction Stop } catch { }
     }
@@ -407,4 +408,46 @@ function Undo-SBChange {
         Write-SBLog "Could not undo $($Change.Kind) $($Change.Name) :: $($_.Exception.Message)" 'ERR'
         return $false
     }
+}
+
+# ---------------------------------------------------------------- Runs (used by Restore.ps1 and the GUI)
+
+function Get-SBRuns {
+    param([switch]$IncludeUndone)
+    $backupRoot = Join-Path $script:SB.Root 'backups'
+    $runs = foreach ($d in (Get-ChildItem -LiteralPath $backupRoot -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending)) {
+        $file = Join-Path $d.FullName 'changes.json'
+        if (-not (Test-Path -LiteralPath $file)) { continue }
+        try { $data = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json } catch { continue }
+        $count = @($data.Changes | Where-Object { $_ }).Count
+        if ($count -eq 0) { continue }
+        $undone = Test-Path -LiteralPath (Join-Path $d.FullName 'UNDONE')
+        if ($undone -and -not $IncludeUndone) { continue }
+        $date = $null
+        try { $date = [datetime]::ParseExact($d.Name, 'yyyyMMdd-HHmmss', $null) } catch { }
+        [pscustomobject]@{ Name = $d.Name; Dir = $d.FullName; Preset = $data.Preset; Count = $count; Undone = $undone; Date = $date
+                           Apps = @($data.Changes | Where-Object { $_.Kind -eq 'App' }).Count }
+    }
+    return @($runs)
+}
+
+function Invoke-SBUndoRun {
+    # Undo the given run AND every newer run that is still active, newest first,
+    # so values are never restored out of order.
+    param([Parameter(Mandatory)][string]$Session)
+    $active = @(Get-SBRuns)
+    $idx = -1
+    for ($i = 0; $i -lt $active.Count; $i++) { if ($active[$i].Name -eq $Session) { $idx = $i } }
+    if ($idx -lt 0) { Write-SBLog "Run $Session not found or already undone" 'WARN'; return [pscustomobject]@{ Failed = 0; Runs = 0 } }
+    $failed = 0
+    foreach ($r in $active[0..$idx]) {
+        $data = Get-Content -LiteralPath (Join-Path $r.Dir 'changes.json') -Raw | ConvertFrom-Json
+        $changes = @($data.Changes | Where-Object { $_ })
+        Write-SBLog "Undoing run $($r.Name) ($($changes.Count) changes)" 'STEP'
+        for ($i = $changes.Count - 1; $i -ge 0; $i--) { if (-not (Undo-SBChange -Change $changes[$i])) { $failed++ } }
+        Set-Content -LiteralPath (Join-Path $r.Dir 'UNDONE') -Value (Get-Date).ToString('o')
+    }
+    if ($failed) { Write-SBLog "$failed item(s) could not be restored automatically - see the .reg files in the backup folder or use System Restore" 'WARN' }
+    else { Write-SBLog 'Undo complete. Restart your PC to finish.' 'OK' }
+    return [pscustomobject]@{ Failed = $failed; Runs = $idx + 1 }
 }

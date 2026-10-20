@@ -7,7 +7,7 @@ $fail = 0
 function Fail($m) { Write-Host "FAIL: $m" -ForegroundColor Red; $script:fail++ }
 
 # 1. Every script parses and is pure ASCII (Windows PowerShell 5.1 misreads UTF-8 without BOM)
-foreach ($f in Get-ChildItem -Path $root -Recurse -Include *.ps1, *.json, *.bat) {
+foreach ($f in Get-ChildItem -Path $root -Recurse -Include *.ps1, *.json, *.bat, *.xaml) {
     $bytes = [IO.File]::ReadAllBytes($f.FullName)
     if ($bytes | Where-Object { $_ -gt 127 }) { Fail "$($f.Name) contains non-ASCII characters" }
     if ($f.Extension -eq '.ps1') {
