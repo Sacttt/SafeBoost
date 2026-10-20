@@ -23,11 +23,21 @@ Inspired by [Raphire/Win11Debloat](https://github.com/Raphire/Win11Debloat), reb
     <td width="50%"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/apps-dark.png">
   <img alt="Apps page" src="docs/screenshots/apps-light.png">
-</picture><br><b>Apps</b> &mdash; only shows bloat that is actually installed. Store, Xbox, Edge and drivers are protected.</td>
+</picture><br><b>Apps</b> &mdash; Store bloat that is actually installed, plus every desktop program sorted by size with an Uninstall button. Store, Xbox, Edge, drivers and runtimes are protected.</td>
     <td width="50%"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/undo-dark.png">
   <img alt="Backups and undo page" src="docs/screenshots/undo-light.png">
 </picture><br><b>Backups &amp; undo</b> &mdash; every run listed; one click restores each setting to its exact previous value.</td>
+  </tr>
+  <tr>
+    <td width="50%"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/startup-dark.png">
+  <img alt="Startup apps page" src="docs/screenshots/startup-light.png">
+</picture><br><b>Startup apps</b> &mdash; switch off apps that launch with Windows (same switch as Task Manager, undoable).</td>
+    <td width="50%"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/cleanup-dark.png">
+  <img alt="Clean up page" src="docs/screenshots/cleanup-light.png">
+</picture><br><b>Clean up</b> &mdash; see exactly how much space temp files, update caches, dumps and browser caches use, then free it.</td>
   </tr>
 </table>
 
@@ -49,6 +59,29 @@ Prefer a terminal? **`RunConsole.bat`** opens the text menu, and `SafeBoost.ps1`
 
 ---
 
+## Everything it can do
+
+**55 tweaks** in 7 groups, each with a plain-English explanation:
+
+| Group | Highlights |
+|---|---|
+| Gaming & latency | Game Mode on, Game DVR off, high-performance power plan, GPU scheduling, windowed-game optimizations, game scheduler priority, raw mouse input, no Sticky/Filter/Toggle Keys popups, **no surprise update restarts mid-match** (updates still install), background power throttling off |
+| Privacy & ads | Telemetry minimum, ad ID, activity history, ads/tips/silent app installs, Bing in Start, Copilot & Recall, typing/handwriting & online speech data, app-launch tracking, Cortana, Edge sidebar/shopping, error-report uploads, location |
+| Background activity | Widgets, Edge background mode, P2P update uploads, Store auto-updates, print spooler, search indexing, Fax / retail demo services |
+| Disk space | Hibernation file (3-13 GB), reserved storage (~7 GB), CompactOS (2-5 GB), Storage Sense |
+| Lean mode | Lighter visual effects, Store apps blocked in background, maps service on demand |
+| Speed & cleanup | No startup-app delay, temp-file cleanup |
+| Taskbar & Explorer | File extensions, hidden files, open to This PC, hide recent files, Task View / Chat / search box, left-aligned taskbar, dark mode, End task, classic right-click menu |
+
+**Tools**
+
+- **Startup apps** &mdash; every app that launches with Windows, with its icon and publisher, tagged *Safe to disable* (game launchers, chat apps, updaters) or *Recommended to keep* (security, audio, touchpad). Uses Task Manager's own switch, nothing is deleted, and changes are undoable.
+- **Clean up** &mdash; temp files, Windows Update cache, Delivery Optimization cache, error reports, crash dumps, old logs, thumbnail cache, browser caches, Recycle Bin and a deep DISM component clean, each with its size. Never touches your files, saves, browser logins or shader caches.
+- **Installed programs** &mdash; all desktop programs biggest-first, preinstalled trialware flagged (McAfee, Norton, OEM promos, Office trials...), drivers and runtimes marked *Keep* with no uninstall button.
+- **92 Store-app patterns** for bloat removal (sponsored games, Bing apps, promos), with a protected list the engine refuses to cross.
+
+---
+
 ## What makes it different
 
 | | Typical "FPS booster" / debloat script | SafeBoost |
@@ -60,9 +93,9 @@ Prefer a terminal? **`RunConsole.bat`** opens the text menu, and `SafeBoost.ps1`
 | Preview | No | *Preview only* / `-DryRun` shows every value it would change, current vs new |
 | Diagnostics | No | Read-only analyzer finds wrong refresh rate, RAM without XMP/EXPO, single-channel RAM, missing/old GPU drivers, HDD boot drive, power saver, battery mode, background hogs |
 | App removal | Big regex lists that sometimes eat the Store, Xbox or drivers | Curated list + a **protected list** the engine refuses to cross (Store, App Installer/winget, Xbox/Game Pass, Defender UI, Edge, codecs, GPU/audio/OEM control panels, Calculator, Photos, Notepad, Paint...) |
-| Services | Disables dozens of services | Touches 3 (telemetry, push-routing, offline maps). Update/Defender/audio/network/Xbox services are hard-blocked in code |
+| Services | Disables dozens of services | Touches a handful, most only if you tick them (telemetry, maps, fax, print spooler, indexing). Update/Defender/audio/network/Xbox services are hard-blocked in code |
 | Placebo tweaks | bcdedit timers, "RAM cleaners", Nagle/TCP hacks, disabling Spectre mitigations | **None.** Each tweak has a written reason and does something measurable |
-| Testing | - | CI applies *every* tweak on a real Windows VM, undoes it, and fails if a single value differs from before |
+| Testing | - | CI applies *every* tweak on a real Windows VM (98 changes), undoes it, and fails if a single value differs from before; startup toggles, cleanup and the programs list are tested too |
 | Wrong account | Silently tweaks the admin account | Warns if you elevated as a different user than the one signed in |
 
 ---

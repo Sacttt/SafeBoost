@@ -191,6 +191,7 @@ function Show-Page([string]$Name) {
     $idx = [array]::IndexOf($script:Pages, $Name)
     $ui.BtnBack.IsEnabled = ($idx -gt 0) -and -not $script:Busy
     $ui.BtnNext.Visibility = if ($script:FlowPages -contains $Name -and $Name -ne 'Apply') { 'Visible' } else { 'Collapsed' }
+    $ui.FooterSummary.Parent.Visibility = if ($script:FlowPages -contains $Name) { 'Visible' } else { 'Hidden' }
     $ui.BtnNextText.Text = switch ($Name) { 'Overview' { 'Choose tweaks' } 'Tweaks' { 'Apps' } 'Apps' { 'Review' } default { 'Next' } }
     if ($Name -eq 'Undo') { Update-Runs }
 }
