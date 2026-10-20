@@ -150,7 +150,11 @@ function New-Card {
 # ==================================================================== theme
 function Set-SBTheme([string]$Name) {
     foreach ($kv in $script:Themes[$Name].GetEnumerator()) {
-        $window.Resources[$kv.Key] = New-Object Windows.Media.SolidColorBrush ([Windows.Media.ColorConverter]::ConvertFromString($kv.Value))
+        $brush = [Windows.Media.SolidColorBrush]::new([Windows.Media.Color]([Windows.Media.ColorConverter]::ConvertFromString($kv.Value)))
+        $brush.Freeze()
+        # Remove/Add (not the indexer) so WPF gets the raw Brush, not a PowerShell wrapper object
+        if ($window.Resources.Contains($kv.Key)) { $window.Resources.Remove($kv.Key) }
+        $window.Resources.Add($kv.Key, $brush)
     }
     $script:ThemeName = $Name
     $ui.GlyphTheme.Text = if ($Name -eq 'Dark') { [string][char]0xE706 } else { [string][char]0xE708 }
