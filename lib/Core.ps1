@@ -370,6 +370,7 @@ function Set-SBHibernate {
     if ($cur.Exists -and $cur.Value -eq 0) { Write-SBLog 'Hibernation already off' 'SKIP'; $script:SB.Stats.Skipped++; return $true }
     $file = Join-Path $env:SystemDrive 'hiberfil.sys'
     $size = 0; try { $size = (Get-Item -LiteralPath $file -Force -ErrorAction Stop).Length } catch { }
+    if ($size -eq 0) { Write-SBLog 'No hibernation file on this PC - nothing to free' 'SKIP'; $script:SB.Stats.Skipped++; return $true }
     if ($script:SB.DryRun) { Write-SBLog ("Would turn off hibernation (frees about {0:N1} GB)" -f ($size / 1GB)) 'DRY'; return $true }
     $out = & powercfg.exe /hibernate off 2>&1
     if ($LASTEXITCODE -ne 0) { Write-SBLog "Could not turn off hibernation: $out" 'WARN'; return $false }

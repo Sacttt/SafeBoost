@@ -58,7 +58,8 @@ function Get-SBStartupItems {
     }
     foreach ($i in $items) {
         $desc = $null; $pub = $null
-        if ($i.Exe -and (Test-Path -LiteralPath $i.Exe -ErrorAction SilentlyContinue)) {
+        $exists = $false; try { $exists = [bool]($i.Exe -and [IO.File]::Exists($i.Exe)) } catch { }
+        if ($exists) {
             try { $vi = (Get-Item -LiteralPath $i.Exe -ErrorAction Stop).VersionInfo; $desc = $vi.FileDescription; $pub = $vi.CompanyName } catch { }
         }
         $text = "$($i.Name) $desc $pub $($i.Exe)"

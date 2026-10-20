@@ -4,6 +4,10 @@ $root = Split-Path $PSScriptRoot -Parent
 . "$root\lib\Core.ps1"; . "$root\lib\Startup.ps1"; . "$root\lib\Cleanup.ps1"; . "$root\lib\Programs.ps1"
 $fail = 0
 function Fail($m) { Write-Host "::error::$m"; $script:fail++ }
+trap {
+    Write-Host "::error::Unexpected error: $($_.Exception.Message) | $($_.InvocationInfo.PositionMessage -replace '\s+', ' ')"
+    exit 1
+}
 
 # ---- Startup: create a fake startup entry, disable it, undo, verify exact restore
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
