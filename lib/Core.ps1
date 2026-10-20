@@ -361,6 +361,49 @@ function New-SBRestorePoint {
     }
 }
 
+
+# ---------------------------------------------------------------- Disk-space actions
+
+function Set-SBHibernate {
+    param([string]$TweakId)
+    $cur = Get-SBRegValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name 'HibernateEnabled'
+    if ($cur.Exists -and $cur.Value -eq 0) { Write-SBLog 'Hibernation already off' 'SKIP'; $script:SB.Stats.Skipped++; return $true }
+    $file = Join-Path $env:SystemDrive 'hiberfil.sys'
+    $size = 0; try { $size = (Get-Item -LiteralPath $file -Force -ErrorAction Stop).Length } catch { }
+    if ($script:SB.DryRun) { Write-SBLog ("Would turn off hibernation (frees about {0:N1} GB)" -f ($size / 1GB)) 'DRY'; return $true }
+    $out = & powercfg.exe /hibernate off 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-SBLog "Could not turn off hibernation: $out" 'WARN'; return $false }
+    Add-SBChange @{ Kind = 'Hibernate'; TweakId = $TweakId; Name = 'Hibernation'; FreedGB = [math]::Round($size / 1GB, 1) }
+    Write-SBLog ("Hibernation off - freed about {0:N1} GB" -f ($size / 1GB)) 'OK'
+    return $true
+}
+
+function Set-SBReservedStorage {
+    param([string]$TweakId)
+    if (-not (Get-Command Get-WindowsReservedStorageState -ErrorAction SilentlyContinue)) { Write-SBLog 'Reserved storage is not available on this Windows' 'SKIP'; return $true }
+    $state = "$((Get-WindowsReservedStorageState -ErrorAction SilentlyContinue).ReservedStorageState)"
+    if ($state -ne 'Enabled') { Write-SBLog "Reserved storage is $(if ($state) { $state } else { 'not in use' }) - nothing to do" 'SKIP'; $script:SB.Stats.Skipped++; return $true }
+    if ($script:SB.DryRun) { Write-SBLog 'Would release reserved storage' 'DRY'; return $true }
+    try {
+        Set-WindowsReservedStorageState -State Disabled -ErrorAction Stop | Out-Null
+        Add-SBChange @{ Kind = 'ReservedStorage'; TweakId = $TweakId; Name = 'ReservedStorage'; OldState = $state }
+        Write-SBLog 'Reserved storage released' 'OK'; return $true
+    } catch { Write-SBLog "Windows is busy with an update - try again after restarting. ($($_.Exception.Message))" 'WARN'; return $false }
+}
+
+function Set-SBCompactOS {
+    param([string]$TweakId)
+    $q = (& compact.exe /compactos:query 2>&1) -join ' '
+    if ($q -match 'is in the Compact state') { Write-SBLog 'Windows is already compressed' 'SKIP'; $script:SB.Stats.Skipped++; return $true }
+    if ($q -notmatch 'not in the Compact state') { Write-SBLog 'Could not read the CompactOS state on this language of Windows - skipped for safety' 'SKIP'; return $true }
+    if ($script:SB.DryRun) { Write-SBLog 'Would compress Windows system files (10-20 minutes)' 'DRY'; return $true }
+    Write-SBLog 'Compressing Windows system files - this takes 10-20 minutes, please wait...' 'INFO'
+    $out = & compact.exe /compactos:always 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-SBLog "CompactOS failed: $(($out | Select-Object -Last 2) -join ' ')" 'WARN'; return $false }
+    Add-SBChange @{ Kind = 'CompactOS'; TweakId = $TweakId; Name = 'CompactOS' }
+    Write-SBLog 'Windows system files compressed' 'OK'; return $true
+}
+
 # ---------------------------------------------------------------- Undo
 
 function Undo-SBChange {
@@ -397,6 +440,19 @@ function Undo-SBChange {
                 if ($Change.OldScheme) { & powercfg.exe /setactive $Change.OldScheme | Out-Null }
                 if ($Change.Created) { & powercfg.exe -delete $Change.NewScheme 2>&1 | Out-Null }
                 Write-SBLog 'Previous power plan restored' 'OK'
+            }
+            'Hibernate' {
+                & powercfg.exe /hibernate on 2>&1 | Out-Null
+                Write-SBLog 'Hibernation turned back on' 'OK'
+            }
+            'ReservedStorage' {
+                Set-WindowsReservedStorageState -State Enabled -ErrorAction Stop | Out-Null
+                Write-SBLog 'Reserved storage turned back on' 'OK'
+            }
+            'CompactOS' {
+                Write-SBLog 'Decompressing Windows system files (10-20 minutes)...' 'INFO'
+                & compact.exe /compactos:never 2>&1 | Out-Null
+                Write-SBLog 'Windows system files decompressed' 'OK'
             }
             'App' {
                 Write-SBLog "App $($Change.Name) was removed - reinstall it free from the Microsoft Store if you want it back" 'WARN'

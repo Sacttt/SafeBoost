@@ -39,6 +39,9 @@ jobs:
       - name: Apply everything, undo everything, compare
         shell: powershell
         run: .\Tests\RoundTrip.ps1
+      - name: Startup manager, cleanup and programs
+        shell: powershell
+        run: .\Tests\Features.ps1
       - name: Show SafeBoost logs as annotations on failure
         if: failure()
         shell: powershell

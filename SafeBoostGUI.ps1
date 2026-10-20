@@ -33,6 +33,9 @@ $script:Root = $PSScriptRoot
 . "$script:Root\lib\Core.ps1"
 . "$script:Root\lib\Tweaks.ps1"
 . "$script:Root\lib\Analyze.ps1"
+. "$script:Root\lib\Startup.ps1"
+. "$script:Root\lib\Cleanup.ps1"
+. "$script:Root\lib\Programs.ps1"
 
 if (-not $Screenshot -and -not (Test-SBAdmin)) {
     Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Verb RunAs `
@@ -40,7 +43,7 @@ if (-not $Screenshot -and -not (Test-SBAdmin)) {
     exit
 }
 
-Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
+Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml, System.Drawing
 
 # ==================================================================== state
 $script:AppCfg     = Get-Content -LiteralPath "$script:Root\config\apps.json" -Raw | ConvertFrom-Json
@@ -57,7 +60,14 @@ $global:SBLogQueue  = $script:LogQueue
 $script:LogTarget   = 'apply'
 $script:Busy        = $false
 $script:LastSession = $null
-$script:Pages       = @('Overview','Tweaks','Apps','Apply','Undo')
+$script:Pages       = @('Overview','Tweaks','Apps','Apply','Startup','Cleanup','Undo')
+$script:FlowPages   = @('Overview','Tweaks','Apps','Apply')
+$script:IconCache   = @{}
+$script:StartupItems = @()
+$script:StartupPending = @{}
+$script:Programs    = $null
+$script:CleanScan   = $null
+$script:CleanChecks = @{}
 $script:Dot         = ' ' + [char]0x00B7 + ' '
 $script:Dash        = ' ' + [char]0x2014 + ' '
 function Get-Plural([int]$n, [string]$word) { if ($n -eq 1) { "$n $word" } else { "$n ${word}s" } }
@@ -76,16 +86,22 @@ $script:Friendly = @{
     'Clipchamp.Clipchamp' = 'Clipchamp'; 'microsoft.windowscommunicationsapps' = 'Mail & Calendar'
     'Microsoft.OutlookForWindows' = 'Outlook (new)'; 'Microsoft.YourPhone' = 'Phone Link'; 'Microsoft.Office.OneNote' = 'OneNote'
     'Microsoft.Whiteboard' = 'Whiteboard'; 'Microsoft.XboxApp' = 'Xbox Console Companion (old)'; 'MSTeams' = 'Teams (work/school)'
-    'SpotifyAB.SpotifyMusic' = 'Spotify'
+    'SpotifyAB.SpotifyMusic' = 'Spotify'; 'Microsoft.BingFinance' = 'Money'; 'Microsoft.BingSports' = 'Sports'
+    'Microsoft.BingTranslator' = 'Translator'; 'Microsoft.BingFoodAndDrink' = 'Food & Drink'; 'Microsoft.BingHealthAndFitness' = 'Health & Fitness'
+    'Microsoft.BingTravel' = 'Travel'; 'Microsoft.3DBuilder' = '3D Builder'; 'Microsoft.NetworkSpeedTest' = 'Network Speed Test'
+    'Microsoft.MicrosoftPowerBIForWindows' = 'Power BI'; 'Microsoft.Office.Lens' = 'Office Lens'; 'Microsoft.Office.Todo.List' = 'To Do (old)'
+    'king.com.*' = 'King games (Candy Crush etc.)'; 'Microsoft.GetHelp' = 'Get Help'; 'Microsoft.WindowsAlarms' = 'Clock'
+    'Microsoft.MicrosoftJournal' = 'Journal'; 'Microsoft.MinecraftUWP' = 'Minecraft (Store)'
 }
 
 $script:CatDefs = [ordered]@{
-    'Gaming'     = @{ Title = 'Gaming & latency';        Glyph = 0xE7FC; Col = 0 }
-    'Privacy'    = @{ Title = 'Privacy & ads';           Glyph = 0xE72E; Col = 1 }
-    'Max'        = @{ Title = 'Lean mode (low-end PCs)'; Glyph = 0xE790; Col = 1 }
-    'Background' = @{ Title = 'Background activity';     Glyph = 0xE9F5; Col = 2 }
-    'Speed'      = @{ Title = 'Speed & cleanup';         Glyph = 0xEC4A; Col = 2 }
-    'Extras'     = @{ Title = 'Quality of life';         Glyph = 0xE734; Col = 2 }
+    'Gaming'     = @{ Title = 'Gaming & latency';        Glyph = 0xE7FC }
+    'Privacy'    = @{ Title = 'Privacy & ads';           Glyph = 0xE72E }
+    'Background' = @{ Title = 'Background activity';     Glyph = 0xE9F5 }
+    'Speed'      = @{ Title = 'Speed & cleanup';         Glyph = 0xEC4A }
+    'Max'        = @{ Title = 'Lean mode (low-end PCs)'; Glyph = 0xE790 }
+    'Space'      = @{ Title = 'Disk space';              Glyph = 0xEDA2 }
+    'Extras'     = @{ Title = 'Taskbar & Explorer';      Glyph = 0xE734 }
 }
 function Get-CatKey($c) { if ($c -in 'Responsiveness','Cleanup') { 'Speed' } else { $c } }
 
@@ -173,10 +189,17 @@ function Show-Page([string]$Name) {
     $script:CurrentPage = $Name
     $nav = $ui["Nav$Name"]; if (-not $nav.IsChecked) { $nav.IsChecked = $true }
     $idx = [array]::IndexOf($script:Pages, $Name)
-    $ui.BtnBack.IsEnabled = ($idx -gt 0)
-    $ui.BtnNext.Visibility = if ($Name -in 'Apply','Undo') { 'Collapsed' } else { 'Visible' }
+    $ui.BtnBack.IsEnabled = ($idx -gt 0) -and -not $script:Busy
+    $ui.BtnNext.Visibility = if ($script:FlowPages -contains $Name -and $Name -ne 'Apply') { 'Visible' } else { 'Collapsed' }
     $ui.BtnNextText.Text = switch ($Name) { 'Overview' { 'Choose tweaks' } 'Tweaks' { 'Apps' } 'Apps' { 'Review' } default { 'Next' } }
     if ($Name -eq 'Undo') { Update-Runs }
+}
+
+function Move-Page([int]$Step) {
+    $i = [array]::IndexOf($script:FlowPages, $script:CurrentPage)
+    if ($i -lt 0) { Show-Page 'Overview'; return }
+    $j = [math]::Max(0, [math]::Min($script:FlowPages.Count - 1, $i + $Step))
+    Show-Page $script:FlowPages[$j]
 }
 
 # ==================================================================== background jobs
@@ -194,7 +217,8 @@ function Add-LogLine([string]$Line) {
     if ($Line -match '^@@P (\d+) (\d+)$') {
         $i = [int]$Matches[1]; $n = [int]$Matches[2]
         if ($n -gt 0) { $ui.ApplyProgress.Value = [math]::Round($i / $n * 100) }
-        $ui.ApplyStatus.Text = "Working... $i of $n"
+        if ($script:LogTarget -eq 'clean') { if ($n -gt 0) { $ui.CleanProgress.Value = [math]::Round($i / $n * 100) } }
+        else { $ui.ApplyStatus.Text = "Working... $i of $n" }
         return
     }
     $time = ''; $lvl = 'INFO'; $msg = $Line
@@ -213,7 +237,7 @@ function Add-LogLine([string]$Line) {
     $t3 = New-TB -Text $msg -Brush $(if ($lvl -eq 'STEP') { 'TextBrush' } else { 'SubTextBrush' }) -Size 12 -Weight $(if ($lvl -eq 'STEP') { 'SemiBold' } else { 'Normal' }) -Wrap
     $t3.FontFamily = $mono; [Windows.Controls.Grid]::SetColumn($t3, 2)
     [void]$g.Children.Add($t1); [void]$g.Children.Add($t2); [void]$g.Children.Add($t3)
-    $panel = if ($script:LogTarget -eq 'undo') { $ui.UndoLogPanel } else { $ui.LogPanel }
+    $panel = switch ($script:LogTarget) { 'undo' { $ui.UndoLogPanel } 'clean' { $ui.CleanLogPanel } 'startup' { $ui.UndoLogPanel } default { $ui.LogPanel } }
     [void]$panel.Children.Add($g)
     while ($panel.Children.Count -gt 1500) { $panel.Children.RemoveAt(0) }
 }
@@ -326,6 +350,7 @@ function Build-PresetCards {
 # ==================================================================== tweaks
 function Build-TweakCards {
     $cols = @($ui.TweakCol0, $ui.TweakCol1, $ui.TweakCol2)
+    $colWeight = @(0.0, 0.0, 0.0)
     foreach ($key in $script:CatDefs.Keys) {
         $def = $script:CatDefs[$key]
         $items = @($script:AllTweaks | Where-Object { (Get-CatKey $_.Category) -eq $key })
@@ -363,7 +388,11 @@ function Build-TweakCards {
             $rows += [pscustomobject]@{ CB = $cb; Text = "$($t.Name) $($t.Why) $($t.Category)" }
         }
         $card.Child = $sp
-        [void]$cols[$def.Col].Children.Add($card)
+        # put each card in the currently shortest column (weights ~ rows)
+        $target = 0
+        for ($c = 1; $c -lt 3; $c++) { if ($colWeight[$c] -lt $colWeight[$target]) { $target = $c } }
+        $colWeight[$target] += $items.Count + 1.5
+        [void]$cols[$target].Children.Add($card)
         $script:TweakCards += [pscustomobject]@{ Card = $card; Rows = $rows; Counter = $counter }
     }
 }
@@ -512,7 +541,9 @@ $script:ApplyWork = {
 function Set-Busy([bool]$On) {
     $script:Busy = $On
     $ui.BtnApply.IsEnabled = -not $On
-    foreach ($p in 'Overview','Tweaks','Apps','Undo') { $ui["Nav$p"].IsEnabled = -not $On }
+    foreach ($p in $script:Pages) { if ($p -ne $script:CurrentPage) { $ui["Nav$p"].IsEnabled = -not $On } }
+    $ui.BtnCleanRun.IsEnabled = (-not $On) -and $null -ne $script:CleanScan
+    $ui.BtnStartupApply.IsEnabled = (-not $On) -and $script:StartupPending.Count -gt 0
     $ui.BtnBack.IsEnabled = -not $On
 }
 
@@ -628,6 +659,301 @@ function Start-Undo([string]$Session) {
     }
 }
 
+# ==================================================================== icons
+function Get-SBIconSource([string]$Path) {
+    if (-not $Path) { return $null }
+    $Path = [Environment]::ExpandEnvironmentVariables($Path)
+    if ($script:IconCache.ContainsKey($Path)) { return $script:IconCache[$Path] }
+    $src = $null
+    try {
+        if ((Test-Path -LiteralPath $Path -PathType Leaf) -and $Path -match '\.(exe|ico|dll|lnk)$') {
+            $ico = [System.Drawing.Icon]::ExtractAssociatedIcon($Path)
+            if ($ico) {
+                $src = [System.Windows.Interop.Imaging]::CreateBitmapSourceFromHIcon($ico.Handle, [Windows.Int32Rect]::Empty, [Windows.Media.Imaging.BitmapSizeOptions]::FromEmptyOptions())
+                $src.Freeze(); $ico.Dispose()
+            }
+        }
+    } catch { $src = $null }
+    $script:IconCache[$Path] = $src
+    return $src
+}
+
+function New-AppIcon([string]$Path, [int]$Fallback = 0xE737) {
+    $src = Get-SBIconSource $Path
+    if ($src) {
+        $img = New-Object Windows.Controls.Image
+        $img.Source = $src; $img.Width = 24; $img.Height = 24; $img.VerticalAlignment = 'Center'
+        [Windows.Media.RenderOptions]::SetBitmapScalingMode($img, 'HighQuality')
+        return $img
+    }
+    $b = New-Object Windows.Controls.Border
+    $b.Width = 28; $b.Height = 28; $b.CornerRadius = 6; $b.VerticalAlignment = 'Center'
+    Set-Ref $b ([Windows.Controls.Border]::BackgroundProperty) 'AccentSoftBrush'
+    $g = New-Glyph -Code $Fallback -Brush 'AccentBrush' -Size 13; $g.HorizontalAlignment = 'Center'
+    $b.Child = $g
+    return $b
+}
+
+function New-RowGrid([object[]]$Widths) {
+    # Widths: number = pixels, '*' = star, 'a' = auto
+    $g = New-Object Windows.Controls.Grid
+    foreach ($w in $Widths) {
+        $cd = New-Object Windows.Controls.ColumnDefinition
+        $cd.Width = if ($w -eq '*') { New-Object Windows.GridLength 1, 'Star' } elseif ($w -eq 'a') { [Windows.GridLength]::Auto } else { New-Object Windows.GridLength ([double]$w) }
+        $g.ColumnDefinitions.Add($cd)
+    }
+    return $g
+}
+
+function Add-ToGrid($Grid, $El, [int]$Col) { [Windows.Controls.Grid]::SetColumn($El, $Col); [void]$Grid.Children.Add($El) }
+
+function New-Divider {
+    $r = New-Object Windows.Shapes.Rectangle
+    $r.Height = 1; $r.Margin = '12,0'
+    Set-Ref $r ([Windows.Shapes.Shape]::FillProperty) 'CardBorderBrush'
+    return $r
+}
+
+# ==================================================================== startup apps
+function Build-StartupRows {
+    $ui.StartupPanel.Children.Clear()
+    $items = @($script:StartupItems)
+    $on = @($items | Where-Object { (Get-StartupWanted $_) }).Count
+    $ui.NavStartupCount.Text = "$on"
+    $ui.StartupStatus.Text = if ($items.Count) { "$on of $($items.Count) apps start with Windows" } else { 'No startup apps found' }
+    if (-not $items.Count) {
+        $t = New-TB -Text 'Nothing starts with Windows except Windows itself.' -Brush 'SubTextBrush'; $t.Margin = '12,12'
+        [void]$ui.StartupPanel.Children.Add($t); return
+    }
+    $first = $true
+    foreach ($it in $items) {
+        if (-not $first) { [void]$ui.StartupPanel.Children.Add((New-Divider)) }
+        $first = $false
+        $g = New-RowGrid @(44, '*', 'a', 'a'); $g.Margin = '12,10'
+        Add-ToGrid $g (New-AppIcon $it.Exe 0xE7E8) 0
+        $sp = New-Object Windows.Controls.StackPanel; $sp.VerticalAlignment = 'Center'
+        $top = New-Object Windows.Controls.WrapPanel
+        $nt = New-TB -Text $it.Description -Weight 'SemiBold'; $nt.Margin = '0,0,8,0'; [void]$top.Children.Add($nt)
+        if ($it.Tag -eq 'Keep') { [void]$top.Children.Add((New-Pill -Text 'Recommended to keep' -Fg 'SevWarnBrush' -Bg 'SevWarnBgBrush')) }
+        elseif ($it.Tag) { [void]$top.Children.Add((New-Pill -Text $it.Tag -Fg 'SevOkBrush' -Bg 'SevOkBgBrush')) }
+        [void]$sp.Children.Add($top)
+        $sub = New-TB -Text "$($it.Publisher)$($script:Dot)$($it.Scope)" -Brush 'SubTextBrush' -Size 12
+        $sub.TextTrimming = 'CharacterEllipsis'; $sub.ToolTip = $it.Command; $sub.Margin = '0,2,0,0'
+        [void]$sp.Children.Add($sub)
+        Add-ToGrid $g $sp 1
+        if ($script:StartupPending.ContainsKey($it.Key)) {
+            $p = New-Pill -Text 'Not saved' -Fg 'AccentBrush' -Bg 'AccentSoftBrush'; $p.Margin = '0,0,14,0'
+            Add-ToGrid $g $p 2
+        }
+        $tg = New-Object Windows.Controls.CheckBox
+        $tg.Style = $window.FindResource('SBToggle'); $tg.Tag = $it.Key; $tg.VerticalAlignment = 'Center'
+        $tg.IsChecked = (Get-StartupWanted $it)
+        if (-not $it.CanDisable) { $tg.IsEnabled = $false; $tg.ToolTip = 'Part of Windows Security - always on' }
+        $tg.Add_Click({ param($s, $e) Set-StartupWanted $s.Tag ([bool]$s.IsChecked) })
+        Add-ToGrid $g $tg 3
+        [void]$ui.StartupPanel.Children.Add($g)
+    }
+}
+
+function Get-StartupWanted($Item) {
+    if ($script:StartupPending.ContainsKey($Item.Key)) { return $script:StartupPending[$Item.Key] }
+    return [bool]$Item.Enabled
+}
+
+function Set-StartupWanted([string]$Key, [bool]$On) {
+    $it = $script:StartupItems | Where-Object { $_.Key -eq $Key } | Select-Object -First 1
+    if (-not $it) { return }
+    if ([bool]$it.Enabled -eq $On) { [void]$script:StartupPending.Remove($Key) } else { $script:StartupPending[$Key] = $On }
+    $ui.BtnStartupApply.IsEnabled = ($script:StartupPending.Count -gt 0) -and -not $script:Busy
+    $ui.BtnStartupApply.Content = if ($script:StartupPending.Count) { "Save $(Get-Plural $script:StartupPending.Count 'change')" } else { 'Save changes' }
+    Build-StartupRows
+}
+
+function Start-StartupScan {
+    $ui.StartupStatus.Text = 'Reading startup apps...'
+    Start-SBBackground -Work {
+        param($Root)
+        . "$Root\lib\Core.ps1"; . "$Root\lib\Startup.ps1"
+        , @(Get-SBStartupItems)
+    }.ToString() -Arguments @($script:Root) -OnComplete {
+        param($r, $err)
+        $script:StartupItems = @($r | ForEach-Object { $_ } | Where-Object { $_ -and $_.Key })
+        $script:StartupPending = @{}
+        $ui.BtnStartupApply.IsEnabled = $false; $ui.BtnStartupApply.Content = 'Save changes'
+        Build-StartupRows
+    }
+}
+
+function Save-StartupChanges {
+    if (-not $script:StartupPending.Count) { return }
+    $changes = @(foreach ($k in $script:StartupPending.Keys) {
+        $it = $script:StartupItems | Where-Object { $_.Key -eq $k } | Select-Object -First 1
+        if ($it) { [pscustomobject]@{ Item = $it; Enable = [bool]$script:StartupPending[$k] } }
+    })
+    Set-Busy $true
+    $ui.StartupStatus.Text = 'Saving...'
+    Start-SBBackground -Work {
+        param($Root, $Changes)
+        . "$Root\lib\Core.ps1"; . "$Root\lib\Startup.ps1"
+        Start-SBSession -Preset 'Startup apps'
+        $ok = 0
+        foreach ($c in $Changes) { if (Set-SBStartupItem -Item $c.Item -Enable $c.Enable) { $ok++ } }
+        Save-SBSession
+        $ok
+    }.ToString() -Arguments @($script:Root, $changes) -OnComplete {
+        param($r, $err)
+        Set-Busy $false
+        $n = @($r)[-1]
+        $line = $null; while ($script:LogQueue.TryDequeue([ref]$line)) { }
+        Start-StartupScan
+        $ui.StartupStatus.Text = "Saved $(Get-Plural ([int]$n) 'change'). Takes effect next sign-in."
+    }
+}
+
+# ==================================================================== clean up
+function Build-CleanRows {
+    $ui.CleanPanel.Children.Clear()
+    $script:CleanChecks = @{}
+    if ($null -eq $script:CleanScan) { return }
+    $first = $true
+    foreach ($t in $script:CleanScan.Targets) {
+        if (-not $first) { [void]$ui.CleanPanel.Children.Add((New-Divider)) }
+        $first = $false
+        $g = New-RowGrid @('*', 'a'); $g.Margin = '12,10'
+        $cb = New-Object Windows.Controls.CheckBox
+        $cb.Style = $window.FindResource('SBCheck'); $cb.Tag = $t.Id
+        $cb.IsChecked = [bool]$t.Default -and ($t.Bytes -ne 0)
+        $sp = New-Object Windows.Controls.StackPanel
+        [void]$sp.Children.Add((New-TB -Text $t.Name -Weight 'SemiBold'))
+        $w = New-TB -Text $t.Why -Brush 'SubTextBrush' -Size 12 -Wrap; $w.Margin = '0,2,0,0'; [void]$sp.Children.Add($w)
+        $cb.Content = $sp
+        $cb.Add_Checked({ Update-CleanTotal }); $cb.Add_Unchecked({ Update-CleanTotal })
+        Add-ToGrid $g $cb 0
+        $sz = New-TB -Text (Format-SBSize $t.Bytes) -Size 14 -Weight 'SemiBold' -Brush $(if ($t.Bytes -gt 100MB) { 'AccentBrush' } else { 'SubTextBrush' })
+        $sz.Margin = '16,0,4,0'; $sz.VerticalAlignment = 'Top'; $sz.MinWidth = 70; $sz.TextAlignment = 'Right'
+        Add-ToGrid $g $sz 1
+        $script:CleanChecks[$t.Id] = $cb
+        [void]$ui.CleanPanel.Children.Add($g)
+    }
+    if ($script:CleanScan.WindowsOldBytes -gt 0) {
+        $ui.WindowsOldCard.Visibility = 'Visible'
+        $ui.WindowsOldTitle.Text = "Previous Windows installation$($script:Dot)$(Format-SBSize $script:CleanScan.WindowsOldBytes)"
+    } else { $ui.WindowsOldCard.Visibility = 'Collapsed' }
+    Update-CleanTotal
+}
+
+function Update-CleanTotal {
+    if ($null -eq $script:CleanScan) { return }
+    $sum = 0L; $n = 0
+    foreach ($t in $script:CleanScan.Targets) {
+        if ($script:CleanChecks[$t.Id].IsChecked) { $n++; if ($t.Bytes -gt 0) { $sum += $t.Bytes } }
+    }
+    $all = [long](($script:CleanScan.Targets | Where-Object { $_.Bytes -gt 0 } | Measure-Object Bytes -Sum).Sum)
+    $ui.CleanTotal.Text = "$(Format-SBSize $sum) selected"
+    $ui.CleanTotalSub.Text = "of $(Format-SBSize $all) found"
+    $ui.NavCleanupSize.Text = if ($all -ge 1GB) { '{0:N1}G' -f ($all / 1GB) } else { '{0:N0}M' -f ($all / 1MB) }
+    $ui.BtnCleanRun.IsEnabled = ($n -gt 0) -and -not $script:Busy
+}
+
+function Start-CleanScan {
+    $ui.CleanTotal.Text = 'Scanning...'; $ui.CleanTotalSub.Text = ''
+    $ui.BtnCleanRun.IsEnabled = $false
+    Start-SBBackground -Work {
+        param($Root)
+        . "$Root\lib\Core.ps1"; . "$Root\lib\Cleanup.ps1"
+        Get-SBCleanupScan
+    }.ToString() -Arguments @($script:Root) -OnComplete {
+        param($r, $err)
+        $script:CleanScan = @($r)[-1]
+        Build-CleanRows
+    }
+}
+
+function Start-Clean {
+    $ids = @($script:CleanChecks.Keys | Where-Object { $script:CleanChecks[$_].IsChecked })
+    if (-not $ids.Count) { return }
+    if ($ids -contains 'recycle') {
+        if ([Windows.MessageBox]::Show($window, 'Empty the Recycle Bin permanently?', 'SafeBoost', 'YesNo', 'Warning') -ne 'Yes') { return }
+    }
+    $script:LogTarget = 'clean'
+    $ui.CleanLogPanel.Children.Clear(); $ui.CleanLogCard.Visibility = 'Visible'
+    $ui.CleanProgress.Visibility = 'Visible'; $ui.CleanProgress.Value = 0
+    Set-Busy $true
+    Start-SBBackground -Work {
+        param($Root, $Ids)
+        . "$Root\lib\Core.ps1"; . "$Root\lib\Cleanup.ps1"
+        $script:SB.LogFile = Join-Path $script:SB.Root ('cleanup-{0}.log' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        New-Item -ItemType Directory -Path $script:SB.Root -Force | Out-Null
+        Invoke-SBDiskCleanup -Ids $Ids
+    }.ToString() -Arguments @($script:Root, $ids) -OnComplete {
+        param($r, $err)
+        Set-Busy $false
+        $ui.CleanProgress.Value = 100
+        $freed = (@($r)[-1]).Freed
+        Start-CleanScan
+        $ui.CleanTotal.Text = "Freed $(Format-SBSize $freed)"
+    }
+}
+
+# ==================================================================== installed programs
+function Build-ProgramRows {
+    $ui.ProgramsPanel.Children.Clear()
+    if ($null -eq $script:Programs) {
+        $t = New-TB -Text 'Reading installed programs...' -Brush 'SubTextBrush'; $t.Margin = '12,12'
+        [void]$ui.ProgramsPanel.Children.Add($t); return
+    }
+    $q = $ui.ProgramSearch.Text.Trim()
+    $list = @($script:Programs | Where-Object { -not $q -or "$($_.Name) $($_.Publisher)" -like "*$q*" })
+    $first = $true; $shown = 0
+    foreach ($p in $list) {
+        if ($shown -ge 150) { break }
+        if (-not $first) { [void]$ui.ProgramsPanel.Children.Add((New-Divider)) }
+        $first = $false; $shown++
+        $g = New-RowGrid @(44, '*', 'a', 'a'); $g.Margin = '12,9'
+        Add-ToGrid $g (New-AppIcon $p.Icon 0xE7B8) 0
+        $sp = New-Object Windows.Controls.StackPanel; $sp.VerticalAlignment = 'Center'
+        $top = New-Object Windows.Controls.WrapPanel
+        $nt = New-TB -Text $p.Name -Weight 'SemiBold'; $nt.Margin = '0,0,8,0'; $nt.TextTrimming = 'CharacterEllipsis'; [void]$top.Children.Add($nt)
+        if ($p.Unwanted) { [void]$top.Children.Add((New-Pill -Text 'Often unwanted' -Fg 'SevBigBrush' -Bg 'SevBigBgBrush')) }
+        if ($p.Keep) { [void]$top.Children.Add((New-Pill -Text 'Keep' -Fg 'SubTextBrush' -Bg 'HoverBrush')) }
+        [void]$sp.Children.Add($top)
+        $meta = @($p.Publisher, $(if ($p.Version) { "v$($p.Version)" }), $(if ($p.Installed) { 'installed ' + $p.Installed.ToString('MMM yyyy') })) | Where-Object { $_ }
+        $sub = New-TB -Text ($meta -join $script:Dot) -Brush 'SubTextBrush' -Size 12; $sub.TextTrimming = 'CharacterEllipsis'; $sub.Margin = '0,2,0,0'
+        [void]$sp.Children.Add($sub)
+        Add-ToGrid $g $sp 1
+        $sz = New-TB -Text $(if ($p.Bytes -gt 0) { Format-SBSize $p.Bytes } else { '' }) -Brush 'SubTextBrush' -Size 12
+        $sz.VerticalAlignment = 'Center'; $sz.Margin = '12,0,14,0'
+        Add-ToGrid $g $sz 2
+        if (-not $p.Keep) {
+            $b = New-Object Windows.Controls.Button; $b.Style = $window.FindResource('BtnBase'); $b.Content = 'Uninstall'; $b.Tag = $p.Name; $b.MinWidth = 92
+            $b.Add_Click({ param($s, $e) Start-ProgramUninstall $s.Tag })
+            Add-ToGrid $g $b 3
+        }
+        [void]$ui.ProgramsPanel.Children.Add($g)
+    }
+    if (-not $list.Count) { $t = New-TB -Text 'No matching programs.' -Brush 'SubTextBrush'; $t.Margin = '12,12'; [void]$ui.ProgramsPanel.Children.Add($t) }
+}
+
+function Start-ProgramUninstall([string]$Name) {
+    $p = $script:Programs | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
+    if (-not $p) { return }
+    $msg = "Open the uninstaller for '$($p.Name)'?`n`nThe program's own uninstaller will start - follow its steps. This can't be undone by SafeBoost (you can reinstall the program later)."
+    if ([Windows.MessageBox]::Show($window, $msg, 'SafeBoost', 'YesNo', 'Question') -ne 'Yes') { return }
+    try { Start-SBUninstall -Program $p } catch { [void][Windows.MessageBox]::Show($window, $_.Exception.Message, 'SafeBoost', 'OK', 'Warning') }
+}
+
+function Start-ProgramScan {
+    Start-SBBackground -Work {
+        param($Root)
+        . "$Root\lib\Programs.ps1"
+        , @(Get-SBInstalledPrograms)
+    }.ToString() -Arguments @($script:Root) -OnComplete {
+        param($r, $err)
+        $script:Programs = @($r | ForEach-Object { $_ } | Where-Object { $_ -and $_.Name })
+        Build-ProgramRows
+    }
+}
+
 # ==================================================================== wire up events
 $ui.BtnMin.Add_Click({ $window.WindowState = 'Minimized' })
 $ui.BtnMax.Add_Click({ $window.WindowState = if ($window.WindowState -eq 'Maximized') { 'Normal' } else { 'Maximized' } })
@@ -648,8 +974,8 @@ foreach ($p in $script:Pages) {
     $ui["Nav$p"].Tag = $p
     $ui["Nav$p"].Add_Checked({ param($s, $e) if ($script:CurrentPage -ne $s.Tag) { Show-Page $s.Tag } })
 }
-$ui.BtnNext.Add_Click({ $i = [array]::IndexOf($script:Pages, $script:CurrentPage); if ($i -lt 3) { Show-Page $script:Pages[$i + 1] } })
-$ui.BtnBack.Add_Click({ $i = [array]::IndexOf($script:Pages, $script:CurrentPage); if ($i -gt 0) { Show-Page $script:Pages[[math]::Min($i - 1, 3)] } })
+$ui.BtnNext.Add_Click({ Move-Page 1 })
+$ui.BtnBack.Add_Click({ Move-Page -1 })
 
 $ui.BtnPresetSafe.Add_Click({ Set-Preset 'Safe' })
 $ui.BtnPresetGaming.Add_Click({ Set-Preset 'Gaming' })
@@ -673,6 +999,18 @@ $ui.BtnOpenBackup.Add_Click({ & $openFolder $script:LastSession })
 $ui.BtnUndoFolder.Add_Click({ $d = Join-Path $script:SB.Root 'backups'; New-Item -ItemType Directory -Path $d -Force | Out-Null; & $openFolder $d })
 $ui.BtnSystemRestore.Add_Click({ Start-Process rstrui.exe })
 $ui.BtnUndoRefresh.Add_Click({ Update-Runs })
+$ui.BtnStartupRefresh.Add_Click({ Start-StartupScan })
+$ui.BtnStartupApply.Add_Click({ Save-StartupChanges })
+$ui.BtnStartupSuggested.Add_Click({
+    foreach ($it in $script:StartupItems) { if ($it.Tag -eq 'Safe to disable' -and $it.Enabled) { $script:StartupPending[$it.Key] = $false } }
+    $ui.BtnStartupApply.IsEnabled = ($script:StartupPending.Count -gt 0)
+    $ui.BtnStartupApply.Content = if ($script:StartupPending.Count) { "Save $(Get-Plural $script:StartupPending.Count 'change')" } else { 'Save changes' }
+    Build-StartupRows
+})
+$ui.BtnCleanScan.Add_Click({ Start-CleanScan })
+$ui.BtnCleanRun.Add_Click({ Start-Clean })
+$ui.BtnWindowsOld.Add_Click({ Start-Process 'ms-settings:storagesense' })
+$ui.ProgramSearch.Add_TextChanged({ Build-ProgramRows })
 
 # ==================================================================== build
 Build-PresetCards
@@ -707,6 +1045,9 @@ if ($Screenshot) {
     Show-Overview (Get-SBSystemInfo) (Get-SBFindings)
     $script:Installed = @(Get-AppxPackage -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
     Build-AppRows; Update-Summary
+    $script:StartupItems = @(Get-SBStartupItems); Build-StartupRows
+    $script:CleanScan = Get-SBCleanupScan; Build-CleanRows
+    $script:Programs = @(Get-SBInstalledPrograms); Build-ProgramRows
     # A real dry run so the activity log shows genuine output
     $ui.ChkDryRun.IsChecked = $true
     $ids = @($script:TweakChecks.Keys | Where-Object { $script:TweakChecks[$_].IsChecked })
@@ -762,6 +1103,10 @@ Start-SBBackground -Work {
     $script:Installed = @($r)
     Build-AppRows; Update-Summary
 }
+
+Start-StartupScan
+Start-ProgramScan
+Start-CleanScan
 
 try {
     [void]$window.ShowDialog()

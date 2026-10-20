@@ -27,7 +27,7 @@ jobs:
         run: |
           .\SafeBoostGUI.ps1 -Screenshot "$PWD\docs\screenshots"
           $png = @(Get-ChildItem docs\screenshots\*.png | Where-Object Length -gt 20KB)
-          if ($png.Count -lt 10) { Write-Host "::error::Expected 10 non-empty screenshots, got $($png.Count)"; exit 1 }
+          if ($png.Count -lt 14) { Write-Host "::error::Expected 14 non-empty screenshots, got $($png.Count)"; exit 1 }
           $png | ForEach-Object { Write-Host "::notice::$($_.Name) $([math]::Round($_.Length/1KB)) KB" }
       - name: Commit screenshots
         shell: bash

@@ -1,6 +1,5 @@
 {
   "_readme": "Edit freely. 'Bloat' is removed by Safe/Gaming/Max, 'Extra' only by Max. Anything matching 'Protected' is NEVER removed, even if you add it to a list. Wildcards (*) allowed. Every removed app can be reinstalled free from the Microsoft Store.",
-
   "Bloat": [
     "Microsoft.BingNews",
     "Microsoft.BingWeather",
@@ -49,9 +48,31 @@
     "*PandoraMediaInc*",
     "*Flipboard*",
     "*Shazam*",
-    "*Microsoft.Office.Sway*"
+    "*Microsoft.Office.Sway*",
+    "Microsoft.BingFinance",
+    "Microsoft.BingSports",
+    "Microsoft.BingTranslator",
+    "Microsoft.BingFoodAndDrink",
+    "Microsoft.BingHealthAndFitness",
+    "Microsoft.BingTravel",
+    "Microsoft.3DBuilder",
+    "Microsoft.NetworkSpeedTest",
+    "Microsoft.MicrosoftPowerBIForWindows",
+    "Microsoft.Office.Lens",
+    "Microsoft.Office.Todo.List",
+    "king.com.*",
+    "*Amazon.com.Amazon*",
+    "*HotspotShield*",
+    "*McAfee*",
+    "*Norton*",
+    "*ESPN*",
+    "*WinZip*",
+    "*Booking*",
+    "*CaesarsSlots*",
+    "*Xing*",
+    "*COOKINGFEVER*",
+    "*DrawboardPDF*"
   ],
-
   "Extra": [
     "microsoft.windowscommunicationsapps",
     "Microsoft.OutlookForWindows",
@@ -63,9 +84,18 @@
     "SpotifyAB.SpotifyMusic",
     "*Netflix*",
     "*PrimeVideo*",
-    "*Hulu*"
+    "*Hulu*",
+    "Microsoft.GetHelp",
+    "Microsoft.WindowsAlarms",
+    "Microsoft.MicrosoftJournal",
+    "*CyberLink*",
+    "*Dropbox*",
+    "Microsoft.MinecraftUWP",
+    "*TuneIn*",
+    "*Deezer*",
+    "*AmazonAlexa*",
+    "*Plex*"
   ],
-
   "Protected": [
     "Microsoft.WindowsStore",
     "Microsoft.StorePurchaseApp",

@@ -226,6 +226,183 @@ $script:SBTweaks = @(
        Why='Brings back the full Windows 10 context menu without "Show more options". Restart Explorer or sign out to see it.'
        Presets=@(); MinBuild=22000
        Registry=@( @{ Path='HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32'; Name='(default)'; Type='String'; Value='' } ) }
+
+    # ============================================================ MORE PRIVACY
+    @{ Id='inking'; Category='Privacy'; Name='Stop typing & handwriting data collection'
+       Why='Windows stops sending what you type and write to Microsoft to "improve" suggestions, and stops harvesting your contacts for it.'
+       Presets=@('Safe','Gaming','Max')
+       Registry=@(
+         @{ Path='HKCU:\Software\Microsoft\InputPersonalization'; Name='RestrictImplicitInkCollection'; Type='DWord'; Value=1 }
+         @{ Path='HKCU:\Software\Microsoft\InputPersonalization'; Name='RestrictImplicitTextCollection'; Type='DWord'; Value=1 }
+         @{ Path='HKCU:\Software\Microsoft\InputPersonalization\TrainedDataStore'; Name='HarvestContacts'; Type='DWord'; Value=0 }
+         @{ Path='HKCU:\Software\Microsoft\Personalization\Settings'; Name='AcceptedPrivacyPolicy'; Type='DWord'; Value=0 }
+         @{ Path='HKCU:\Software\Microsoft\Input\TIPC'; Name='Enabled'; Type='DWord'; Value=0 }
+       ) }
+
+    @{ Id='speech'; Category='Privacy'; Name='Turn off online speech recognition'
+       Why='Voice input is no longer sent to Microsoft servers. Offline voice typing and accessibility tools still work.'
+       Presets=@('Safe','Gaming','Max')
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Speech_OneCore\Settings\OnlineSpeechPrivacy'; Name='HasAccepted'; Type='DWord'; Value=0 } ) }
+
+    @{ Id='apptracking'; Category='Privacy'; Name='Stop tracking which apps you launch'
+       Why='Windows stops recording app launches. Side effect: the "Most used" list in Start disappears.'
+       Presets=@('Safe','Gaming','Max')
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'; Name='Start_TrackProgs'; Type='DWord'; Value=0 } ) }
+
+    @{ Id='cortana'; Category='Privacy'; Name='Disable Cortana'
+       Why='Cortana is discontinued but can still run in the background on older builds.'
+       Presets=@('Safe','Gaming','Max')
+       Registry=@( @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search'; Name='AllowCortana'; Type='DWord'; Value=0 } ) }
+
+    @{ Id='smartclipboard'; Category='Privacy'; Name='Disable "Suggested actions" popups on copy'
+       Why='No more popups offering to call or add to calendar when you copy a phone number or date.'
+       Presets=@('Safe','Gaming','Max'); MinBuild=22621
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\SmartActionPlatform\SmartClipboard'; Name='Disabled'; Type='DWord'; Value=1 } ) }
+
+    @{ Id='errorreporting'; Category='Privacy'; Name='Turn off Windows Error Reporting uploads'
+       Why='Crash reports are no longer collected and uploaded. Saves disk writes and bandwidth after app crashes.'
+       Presets=@('Max')
+       Registry=@(
+         @{ Path='HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting'; Name='Disabled'; Type='DWord'; Value=1 }
+         @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting'; Name='Disabled'; Type='DWord'; Value=1 }
+       ) }
+
+    @{ Id='location'; Category='Privacy'; Name='Turn off location access for all apps'
+       Why='No app can read your location. Side effect: Weather, Maps and "Find my device" lose your position.'
+       Presets=@()
+       Registry=@( @{ Path='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location'; Name='Value'; Type='String'; Value='Deny' } ) }
+
+    @{ Id='edgesidebar'; Category='Privacy'; Name='Hide the Edge sidebar & shopping popups'
+       Why='Removes the Copilot/Discover sidebar and the shopping coupons assistant from Edge.'
+       Presets=@('Safe','Gaming','Max')
+       Registry=@(
+         @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Edge'; Name='HubsSidebarEnabled'; Type='DWord'; Value=0 }
+         @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Edge'; Name='EdgeShoppingAssistantEnabled'; Type='DWord'; Value=0 }
+         @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Edge'; Name='PersonalizationReportingEnabled'; Type='DWord'; Value=0 }
+       ) }
+
+    # ============================================================ MORE GAMING
+    @{ Id='accesskeys'; Category='Gaming'; Name='Stop Filter Keys / Toggle Keys popups'
+       Why='Holding Shift or pressing Num Lock mid-game no longer pops up an accessibility dialog. The features still work from Settings.'
+       Presets=@('Gaming','Max')
+       Registry=@(
+         @{ Path='HKCU:\Control Panel\Accessibility\Keyboard Response'; Name='Flags'; Type='String'; Value='122' }
+         @{ Path='HKCU:\Control Panel\Accessibility\ToggleKeys'; Name='Flags'; Type='String'; Value='58' }
+       ) }
+
+    @{ Id='gamebartips'; Category='Gaming'; Name='Hide Game Bar startup tips'
+       Why='No "Press Win+G" popup each time a game starts.'
+       Presets=@('Gaming','Max')
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\GameBar'; Name='ShowStartupPanel'; Type='DWord'; Value=0 } ) }
+
+    @{ Id='noautoreboot'; Category='Gaming'; Name='No surprise restarts for updates while you are signed in'
+       Why='Updates still download and install as normal - Windows just waits for YOU to restart instead of rebooting in the middle of a match.'
+       Presets=@('Gaming','Max')
+       Registry=@( @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'; Name='NoAutoRebootWithLoggedOnUsers'; Type='DWord'; Value=1 } ) }
+
+    @{ Id='powerthrottle'; Category='Gaming'; Name='Disable power throttling of background apps'
+       Why='Windows stops forcing background apps (Discord, OBS, music) onto slow efficiency mode, which can cause stream/voice stutter. Slightly more power use on laptops.'
+       Presets=@('Max'); MinBuild=16299
+       Registry=@( @{ Path='HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling'; Name='PowerThrottlingOff'; Type='DWord'; Value=1 } ) }
+
+    @{ Id='keyrepeat'; Category='Gaming'; Name='Fastest keyboard repeat rate'
+       Why='Shortest delay before a held key repeats, and the fastest repeat speed. Feels snappier when typing and in menus.'
+       Presets=@()
+       Registry=@(
+         @{ Path='HKCU:\Control Panel\Keyboard'; Name='KeyboardDelay'; Type='String'; Value='0' }
+         @{ Path='HKCU:\Control Panel\Keyboard'; Name='KeyboardSpeed'; Type='String'; Value='31' }
+       ) }
+
+    # ============================================================ MORE BACKGROUND
+    @{ Id='storeautoupdate'; Category='Background'; Name='Stop Microsoft Store auto-updating apps'
+       Why='Store apps only update when you open the Store - no surprise downloads eating bandwidth while you play. Remember to update now and then.'
+       Presets=@()
+       Registry=@( @{ Path='HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore'; Name='AutoDownload'; Type='DWord'; Value=2 } ) }
+
+    @{ Id='printspooler'; Category='Background'; Name='Disable printing service (only if you never print)'
+       Why='Stops the Print Spooler service (one less process and a common security target). Printing and "Print to PDF" stop working until you undo this.'
+       Presets=@()
+       Services=@( @{ Name='Spooler'; Mode='disabled'; Stop=$true } ) }
+
+    @{ Id='searchindex'; Category='Background'; Name='Search indexing on demand only'
+       Why='Stops constant background indexing - helps PCs with a hard drive. Start menu search still works but file search becomes slower.'
+       Presets=@()
+       Services=@( @{ Name='WSearch'; Mode='demand'; Stop=$true } ) }
+
+    @{ Id='fax'; Category='Background'; Name='Fax & retail demo services off'
+       Why='Two services almost nobody uses. Both stay installed and can be turned back on.'
+       Presets=@('Max')
+       Services=@( @{ Name='Fax'; Mode='disabled' }, @{ Name='RetailDemo'; Mode='disabled' } ) }
+
+    # ============================================================ DISK SPACE
+    @{ Id='hibernate'; Category='Space'; Name='Turn off hibernation (frees GBs)'
+       Why='Deletes hiberfil.sys, which is often 3-13 GB. Also turns off Fast Startup. Not recommended on laptops that you hibernate.'
+       Presets=@(); Action='Hibernate' }
+
+    @{ Id='reservedstorage'; Category='Space'; Name='Release reserved storage (~7 GB)'
+       Why='Windows keeps ~7 GB reserved for updates. Releasing it frees the space; updates still work but need free space when they install.'
+       Presets=@(); MinBuild=18362; Action='ReservedStorage' }
+
+    @{ Id='compactos'; Category='Space'; Name='Compress Windows system files (CompactOS)'
+       Why='Compresses Windows itself to free 2-5 GB on small SSDs. Tiny CPU cost when loading system files. Takes 10-20 minutes.'
+       Presets=@(); Action='CompactOS' }
+
+    @{ Id='storagesense'; Category='Space'; Name='Turn on Storage Sense'
+       Why='Windows automatically deletes temp files when space runs low. Check Settings > Storage > Storage Sense for Recycle Bin and Downloads rules.'
+       Presets=@()
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy'; Name='01'; Type='DWord'; Value=1 } ) }
+
+    # ============================================================ TASKBAR & EXPLORER
+    @{ Id='launchthispc'; Category='Extras'; Name='Open File Explorer to "This PC"'
+       Why='Explorer opens to your drives instead of Home / Quick access.'
+       Presets=@()
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'; Name='LaunchTo'; Type='DWord'; Value=1 } ) }
+
+    @{ Id='showhidden'; Category='Extras'; Name='Show hidden files and folders'
+       Why='See hidden folders like AppData. Protected system files stay hidden.'
+       Presets=@()
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'; Name='Hidden'; Type='DWord'; Value=1 } ) }
+
+    @{ Id='recentfiles'; Category='Extras'; Name='Hide recent & frequent files in Explorer'
+       Why='Quick access / Home stops listing files and folders you opened recently.'
+       Presets=@()
+       Registry=@(
+         @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer'; Name='ShowRecent'; Type='DWord'; Value=0 }
+         @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer'; Name='ShowFrequent'; Type='DWord'; Value=0 }
+       ) }
+
+    @{ Id='taskview'; Category='Extras'; Name='Hide the Task View button'
+       Why='Removes the virtual desktops button from the taskbar (Win+Tab still works).'
+       Presets=@()
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'; Name='ShowTaskViewButton'; Type='DWord'; Value=0 } ) }
+
+    @{ Id='searchicon'; Category='Extras'; Name='Taskbar search as an icon'
+       Why='Replaces the wide search box with a small icon to free taskbar space.'
+       Presets=@()
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Search'; Name='SearchboxTaskbarMode'; Type='DWord'; Value=1 } ) }
+
+    @{ Id='taskbarleft'; Category='Extras'; Name='Align taskbar icons to the left (Win11)'
+       Why='Start button and apps on the left like Windows 10.'
+       Presets=@(); MinBuild=22000
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'; Name='TaskbarAl'; Type='DWord'; Value=0 } ) }
+
+    @{ Id='chaticon'; Category='Extras'; Name='Remove the Chat / Teams taskbar button (Win11)'
+       Why='Hides the Teams Chat button that early Windows 11 builds pin to the taskbar.'
+       Presets=@(); MinBuild=22000
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'; Name='TaskbarMn'; Type='DWord'; Value=0 } ) }
+
+    @{ Id='darkmode'; Category='Extras'; Name='Dark mode for Windows and apps'
+       Why='Switches system and app theme to dark.'
+       Presets=@()
+       Registry=@(
+         @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'; Name='AppsUseLightTheme'; Type='DWord'; Value=0 }
+         @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'; Name='SystemUsesLightTheme'; Type='DWord'; Value=0 }
+       ) }
+
+    @{ Id='spotlighticon'; Category='Extras'; Name='Hide "Learn about this picture" desktop icon'
+       Why='Removes the Windows Spotlight icon from the desktop.'
+       Presets=@(); MinBuild=22000
+       Registry=@( @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel'; Name='{2cc5ca98-6485-489a-920e-b3e88a6ccce3}'; Type='DWord'; Value=1 } ) }
 )
 
 function Get-SBTweaks {
@@ -284,5 +461,8 @@ function Invoke-SBTweak {
     switch ($Tweak.Action) {
         'PowerPlan' { [void](Set-SBPowerPlan -TweakId $Tweak.Id) }
         'Cleanup'   { Invoke-SBCleanup -TweakId $Tweak.Id }
+        'Hibernate' { [void](Set-SBHibernate -TweakId $Tweak.Id) }
+        'ReservedStorage' { [void](Set-SBReservedStorage -TweakId $Tweak.Id) }
+        'CompactOS' { [void](Set-SBCompactOS -TweakId $Tweak.Id) }
     }
 }

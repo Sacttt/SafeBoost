@@ -25,7 +25,10 @@ function Get-State {
 
 $before = Get-State
 & "$root\SafeBoost.ps1" -Preset Max -Silent -SkipRestorePoint -NoAppRemoval
-& "$root\SafeBoost.ps1" -Preset Custom -Only fileext,endtask,classicmenu -Silent -SkipRestorePoint
+# Every tweak that is not in a preset (skip the two slow disk actions: CompactOS takes 20+ min, reserved storage depends on update state)
+$customIds = @(Get-SBTweaks | Where-Object { $_.Supported -and -not @($_.Presets).Count -and $_.Id -notin 'compactos', 'reservedstorage' } | ForEach-Object { $_.Id })
+Write-Host "Custom-only tweaks tested: $($customIds -join ', ')"
+& "$root\SafeBoost.ps1" -Preset Custom -Only $customIds -Silent -SkipRestorePoint
 $during = Get-State
 
 $changed = @($before.Keys | Where-Object { $before[$_] -ne $during[$_] })

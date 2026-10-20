@@ -189,6 +189,39 @@
       </Setter>
     </Style>
 
+
+    <!-- Toggle switch -->
+    <Style x:Key="SBToggle" TargetType="CheckBox">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="CheckBox">
+            <Grid Background="Transparent">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <TextBlock x:Name="lbl" Text="Off" Width="30" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource SubTextBrush}"/>
+              <Border x:Name="track" Grid.Column="1" Width="40" Height="20" CornerRadius="10" BorderThickness="1"
+                      BorderBrush="{DynamicResource CheckBorderBrush}" Background="Transparent">
+                <Ellipse x:Name="knob" Width="12" Height="12" Fill="{DynamicResource SubTextBrush}" HorizontalAlignment="Left" Margin="4,0,0,0"/>
+              </Border>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="track" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                <Setter TargetName="track" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                <Setter TargetName="knob" Property="Fill" Value="{DynamicResource AccentFgBrush}"/>
+                <Setter TargetName="knob" Property="HorizontalAlignment" Value="Right"/>
+                <Setter TargetName="knob" Property="Margin" Value="0,0,4,0"/>
+                <Setter TargetName="lbl" Property="Text" Value="On"/>
+                <Setter TargetName="lbl" Property="Foreground" Value="{DynamicResource TextBrush}"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="track" Property="Opacity" Value="0.85"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <!-- Search box -->
     <Style x:Key="SearchBox" TargetType="TextBox">
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
@@ -323,6 +356,23 @@
               <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE768;" Style="{StaticResource Glyph}" FontSize="15" Width="28"/><TextBlock Text="Review &amp; apply" VerticalAlignment="Center"/></StackPanel>
             </RadioButton>
             <Rectangle Height="1" Fill="{DynamicResource CardBorderBrush}" Margin="10,10"/>
+            <TextBlock Text="TOOLS" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SubTextBrush}" Margin="14,2,0,6"/>
+            <RadioButton x:Name="NavStartup" Style="{StaticResource NavBtn}">
+              <Grid Width="182">
+                <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7E8;" Style="{StaticResource Glyph}" FontSize="15" Width="28"/><TextBlock Text="Startup apps" VerticalAlignment="Center"/></StackPanel>
+                <Border HorizontalAlignment="Right" CornerRadius="9" MinWidth="22" Padding="6,1" Background="{DynamicResource AccentSoftBrush}">
+                  <TextBlock x:Name="NavStartupCount" Text="-" FontSize="11" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                </Border>
+              </Grid>
+            </RadioButton>
+            <RadioButton x:Name="NavCleanup" Style="{StaticResource NavBtn}">
+              <Grid Width="182">
+                <StackPanel Orientation="Horizontal"><TextBlock Text="&#xEDA2;" Style="{StaticResource Glyph}" FontSize="15" Width="28"/><TextBlock Text="Clean up" VerticalAlignment="Center"/></StackPanel>
+                <Border HorizontalAlignment="Right" CornerRadius="9" MinWidth="22" Padding="6,1" Background="{DynamicResource AccentSoftBrush}">
+                  <TextBlock x:Name="NavCleanupSize" Text="-" FontSize="11" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                </Border>
+              </Grid>
+            </RadioButton>
             <RadioButton x:Name="NavUndo" Style="{StaticResource NavBtn}">
               <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE81C;" Style="{StaticResource Glyph}" FontSize="15" Width="28"/><TextBlock Text="Backups &amp; undo" VerticalAlignment="Center"/></StackPanel>
             </RadioButton>
@@ -424,6 +474,17 @@
                   </Border>
                   <TextBlock Style="{StaticResource Sub}" FontSize="12" Margin="4,10,0,0"
                              Text="Removed apps can be reinstalled free from the Microsoft Store at any time."/>
+                  <Grid Margin="0,28,0,10">
+                    <StackPanel>
+                      <TextBlock Text="Installed programs" Style="{StaticResource H2}"/>
+                      <TextBlock Style="{StaticResource Sub}" FontSize="12" Margin="0,3,0,0"
+                                 Text="Biggest first. Uninstall opens the program's own uninstaller. Drivers and runtimes other apps need are marked Keep."/>
+                    </StackPanel>
+                    <TextBox x:Name="ProgramSearch" Style="{StaticResource SearchBox}" Tag="Search programs" Width="240" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                  </Grid>
+                  <Border Style="{StaticResource Card}" Padding="6,4">
+                    <StackPanel x:Name="ProgramsPanel"/>
+                  </Border>
                 </StackPanel>
               </ScrollViewer>
             </Grid>
@@ -492,6 +553,78 @@
                   </Border>
                 </Grid>
               </Border>
+            </Grid>
+
+
+            <!-- Startup apps -->
+            <Grid x:Name="PageStartup" Visibility="Collapsed">
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
+              <StackPanel Margin="36,30,36,0">
+                <TextBlock Text="Startup apps" Style="{StaticResource H1}"/>
+                <TextBlock Style="{StaticResource Sub}" Margin="0,6,0,0" FontSize="14"
+                           Text="Apps that launch with Windows use RAM and slow down boot. Switching one off does not uninstall it - it just stops it starting automatically."/>
+                <Grid Margin="0,18,0,14">
+                  <StackPanel Orientation="Horizontal">
+                    <Button x:Name="BtnStartupSuggested" Style="{StaticResource BtnBase}" Content="Turn off suggested" Margin="0,0,6,0"/>
+                    <Button x:Name="BtnStartupRefresh" Style="{StaticResource BtnBase}" Content="Refresh" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="StartupStatus" Style="{StaticResource Sub}" VerticalAlignment="Center" Text="Reading startup apps..."/>
+                  </StackPanel>
+                  <Button x:Name="BtnStartupApply" Style="{StaticResource PrimaryBtn}" Content="Save changes" HorizontalAlignment="Right" IsEnabled="False" Padding="20,8"/>
+                </Grid>
+              </StackPanel>
+              <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="36,0,30,24">
+                  <Border Style="{StaticResource Card}" Padding="6,4">
+                    <StackPanel x:Name="StartupPanel"/>
+                  </Border>
+                  <TextBlock Style="{StaticResource Sub}" FontSize="12" Margin="4,10,0,0"
+                             Text="Same switch as Task Manager &gt; Startup apps. Saved changes appear in Backups &amp; undo."/>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+
+            <!-- Clean up -->
+            <Grid x:Name="PageCleanup" Visibility="Collapsed">
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
+              <StackPanel Margin="36,30,36,0">
+                <TextBlock Text="Clean up" Style="{StaticResource H1}"/>
+                <TextBlock Style="{StaticResource Sub}" Margin="0,6,0,0" FontSize="14"
+                           Text="Free disk space by removing caches and leftovers Windows rebuilds on its own. Your files, saves and browser logins are never touched."/>
+                <Grid Margin="0,18,0,14">
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnCleanScan" Style="{StaticResource BtnBase}" Content="Scan again" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="CleanTotal" Text="Scanning..." FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="CleanTotalSub" Text="" Style="{StaticResource Sub}" Margin="10,4,0,0" VerticalAlignment="Center"/>
+                  </StackPanel>
+                  <Button x:Name="BtnCleanRun" Style="{StaticResource PrimaryBtn}" HorizontalAlignment="Right" IsEnabled="False" Padding="20,8">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="&#xE74D;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{DynamicResource AccentFgBrush}"/>
+                      <TextBlock Text="Clean selected" Margin="8,0,0,0" Foreground="{DynamicResource AccentFgBrush}"/>
+                    </StackPanel>
+                  </Button>
+                </Grid>
+                <ProgressBar x:Name="CleanProgress" Style="{StaticResource SBProgress}" Margin="0,0,0,12" Maximum="100" Value="0" Visibility="Collapsed"/>
+              </StackPanel>
+              <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="36,0,30,24">
+                  <Border Style="{StaticResource Card}" Padding="6,4">
+                    <StackPanel x:Name="CleanPanel"/>
+                  </Border>
+                  <Border x:Name="WindowsOldCard" Style="{StaticResource Card}" Margin="0,12,0,0" Visibility="Collapsed">
+                    <Grid>
+                      <StackPanel Margin="0,0,180,0">
+                        <TextBlock x:Name="WindowsOldTitle" Text="Previous Windows installation" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
+                        <TextBlock Style="{StaticResource Sub}" FontSize="12" Margin="0,2,0,0"
+                                   Text="Windows.old lets you go back to your previous Windows version. Remove it from Windows Settings once you are happy with the upgrade."/>
+                      </StackPanel>
+                      <Button x:Name="BtnWindowsOld" Style="{StaticResource BtnBase}" Content="Open Storage settings" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
+                  </Border>
+                  <Border x:Name="CleanLogCard" Style="{StaticResource Card}" Margin="0,12,0,0" Visibility="Collapsed" Background="{DynamicResource LogBrush}">
+                    <StackPanel x:Name="CleanLogPanel"/>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
             </Grid>
 
             <!-- Backups & undo -->

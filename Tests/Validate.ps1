@@ -34,20 +34,25 @@ foreach ($t in $script:SBTweaks) {
     if (-not $t.Id -or -not $t.Name -or -not $t.Why -or -not $t.Category) { Fail "Tweak missing Id/Name/Why/Category: $($t.Id)" }
     if ($ids.ContainsKey($t.Id)) { Fail "Duplicate tweak id $($t.Id)" }; $ids[$t.Id] = 1
     foreach ($p in @($t.Presets)) { if ($p -and $p -notin 'Safe','Gaming','Max') { Fail "$($t.Id): unknown preset $p" } }
+    if ($t.Category -notin 'Privacy','Background','Responsiveness','Cleanup','Gaming','Max','Space','Extras') { Fail "$($t.Id): unknown category $($t.Category)" }
     foreach ($r in @($t.Registry)) {
         if (-not $r) { continue }
         if ($r.Path -notmatch '^(HKCU|HKLM):\\') { Fail "$($t.Id): bad hive in $($r.Path)" }
         if ($r.Type -notin $validTypes) { Fail "$($t.Id): bad type $($r.Type)" }
         if (-not $r.Name) { Fail "$($t.Id): missing value name" }
         if ($null -eq $r.Value) { Fail "$($t.Id): null value for $($r.Name)" }
-        foreach ($bad in $forbidden) { if ("$($r.Path)\$($r.Name)" -match $bad) { Fail "$($t.Id): touches forbidden area '$bad'" } }
+        # The ONLY Windows Update value allowed: wait for the user to restart (updates still install).
+        $allowed = @('HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU\NoAutoRebootWithLoggedOnUsers')
+        if ($allowed -notcontains "$($r.Path)\$($r.Name)") {
+            foreach ($bad in $forbidden) { if ("$($r.Path)\$($r.Name)" -match $bad) { Fail "$($t.Id): touches forbidden area '$bad'" } }
+        }
     }
     foreach ($s in @($t.Services)) {
         if (-not $s) { continue }
         if ($script:SBProtectedServices -contains $s.Name) { Fail "$($t.Id): protected service $($s.Name)" }
         if ($s.Mode -notin 'demand','disabled') { Fail "$($t.Id): bad service mode $($s.Mode)" }
     }
-    if ($t.Action -and $t.Action -notin 'PowerPlan','Cleanup') { Fail "$($t.Id): unknown action $($t.Action)" }
+    if ($t.Action -and $t.Action -notin 'PowerPlan','Cleanup','Hibernate','ReservedStorage','CompactOS') { Fail "$($t.Id): unknown action $($t.Action)" }
 }
 
 # Safe preset must never contain anything needing a reboot or touching services beyond telemetry
