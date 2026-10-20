@@ -2,7 +2,7 @@
 # Every change goes through this file. Each function records the ORIGINAL state
 # before touching anything, so Restore.ps1 can put the PC back exactly as it was.
 
-$script:SBVersion = '1.0.0'
+$script:SBVersion = '2.0.0'
 
 $script:SB = @{
     Root       = Join-Path $env:ProgramData 'SafeBoost'

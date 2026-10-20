@@ -1,19 +1,51 @@
 # SafeBoost
 
-**Safe, fully reversible Windows 10 / 11 debloat + gaming performance tool.**
+**Safe, fully reversible Windows 10 / 11 debloat + gaming performance app.**
 Inspired by [Raphire/Win11Debloat](https://github.com/Raphire/Win11Debloat), rebuilt around one rule: **never brick the PC, and every change can be undone.**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/overview-dark.png">
+  <img alt="SafeBoost overview: system info, PC health check and presets" src="docs/screenshots/overview-light.png">
+</picture>
+
+<table>
+  <tr>
+    <td width="50%"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/tweaks-dark.png">
+  <img alt="Tweaks page" src="docs/screenshots/tweaks-light.png">
+</picture><br><b>Tweaks</b> &mdash; every tweak explains what it does, with Restart / Windows 11 / Safe badges and search.</td>
+    <td width="50%"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/apply-dark.png">
+  <img alt="Review and apply page" src="docs/screenshots/apply-light.png">
+</picture><br><b>Review &amp; apply</b> &mdash; restore point, preview mode and a live, colour-coded log of every change.</td>
+  </tr>
+  <tr>
+    <td width="50%"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/apps-dark.png">
+  <img alt="Apps page" src="docs/screenshots/apps-light.png">
+</picture><br><b>Apps</b> &mdash; only shows bloat that is actually installed. Store, Xbox, Edge and drivers are protected.</td>
+    <td width="50%"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/undo-dark.png">
+  <img alt="Backups and undo page" src="docs/screenshots/undo-light.png">
+</picture><br><b>Backups &amp; undo</b> &mdash; every run listed; one click restores each setting to its exact previous value.</td>
+  </tr>
+</table>
+
+<sub>Screenshots are rendered from the real app by GitHub Actions on every change (light or dark matches your GitHub theme).</sub>
 
 ---
 
 ## Quick start
 
-1. Download / clone this repo and unzip it anywhere.
-2. Double-click **`Run.bat`** and accept the admin prompt.
-3. Pick **1 - Check my PC** first. It changes nothing and tells you what is *actually* costing you FPS.
-4. Pick **3 - GAMING** (or **6 - PREVIEW** to see every change first).
+1. **Code &rarr; Download ZIP**, unzip anywhere.
+2. Double-click **`Run.bat`** and accept the admin prompt. The SafeBoost app opens.
+3. Read the **PC health check** on the Overview page &mdash; it finds what *actually* costs you FPS.
+4. Pick **Gaming**, review the tweaks and apps, then **Review &amp; apply** (tick *Preview only* first if you want to see every change without making it).
 5. Restart.
 
-Changed your mind? Double-click **`Undo.bat`**.
+Changed your mind? **Backups &amp; undo** in the app, or double-click **`Undo.bat`**.
+
+Prefer a terminal? **`RunConsole.bat`** opens the text menu, and `SafeBoost.ps1` has a full command line (see below).
 
 ---
 
@@ -24,7 +56,8 @@ Changed your mind? Double-click **`Undo.bat`**.
 | Backup | Maybe a restore point | Restore point **+** per-value JSON backup **+** `.reg` export of every touched key |
 | Undo | "Use System Restore" | `Undo.bat` puts back the *exact* previous value of every setting (or deletes it if it didn't exist) |
 | Crash mid-run | Half-applied mess | Backup file is written after **every single change**, so undo still works |
-| Preview | No | `PREVIEW` / `-DryRun` shows every value it would change, current vs new |
+| Interface | Console text, or a basic form | Windows 11 style app with light/dark theme, search, live log, and a background worker so it never freezes |
+| Preview | No | *Preview only* / `-DryRun` shows every value it would change, current vs new |
 | Diagnostics | No | Read-only analyzer finds wrong refresh rate, RAM without XMP/EXPO, single-channel RAM, missing/old GPU drivers, HDD boot drive, power saver, battery mode, background hogs |
 | App removal | Big regex lists that sometimes eat the Store, Xbox or drivers | Curated list + a **protected list** the engine refuses to cross (Store, App Installer/winget, Xbox/Game Pass, Defender UI, Edge, codecs, GPU/audio/OEM control panels, Calculator, Photos, Notepad, Paint...) |
 | Services | Disables dozens of services | Touches 3 (telemetry, push-routing, offline maps). Update/Defender/audio/network/Xbox services are hard-blocked in code |
@@ -101,7 +134,7 @@ Backups and logs: `C:\ProgramData\SafeBoost\backups\<date-time>\` (`changes.json
 
 ## Requirements
 
-Windows 10 2004 (build 19041) or newer, or Windows 11. Administrator rights. Windows PowerShell 5.1 (built into Windows; if you start it from PowerShell 7 it relaunches itself in 5.1 automatically).
+Windows 10 2004 (build 19041) or newer, or Windows 11. Administrator rights. Windows PowerShell 5.1 and .NET Framework WPF (both built into Windows; if you start it from PowerShell 7 it relaunches itself in 5.1 automatically).
 
 ## Credits & license
 
