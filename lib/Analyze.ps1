@@ -51,9 +51,9 @@ function Get-SBFindings {
         if ($g.DriverDate) { $age = [int]((Get-Date) - [datetime]$g.DriverDate).TotalDays }
         Add-F 'INFO' 'GPU' "$($g.Name) - driver $($g.DriverVersion)$(if ($null -ne $age) { " ($age days old)" })" ''
         if ($age -gt 180 -and $g.Name -match 'NVIDIA|AMD|Radeon|Arc') { Add-F 'WARN' 'GPU' "GPU driver is $age days old" 'Update from the GPU maker (NVIDIA App / AMD Adrenalin / Intel Arc Control). New games get big fixes in new drivers.' }
-        if ($g.CurrentRefreshRate -and $g.MaxRefreshRate -and ($g.MaxRefreshRate - $g.CurrentRefreshRate) -ge 10 -and $g.MaxRefreshRate -le 600) {
+        if ($g.CurrentRefreshRate -ge 24 -and $g.MaxRefreshRate -and ($g.MaxRefreshRate - $g.CurrentRefreshRate) -ge 10 -and $g.MaxRefreshRate -le 600) {
             Add-F 'BIG' 'Display' "Monitor running at $($g.CurrentRefreshRate) Hz, but up to $($g.MaxRefreshRate) Hz may be available" 'Settings > System > Display > Advanced display > Choose a refresh rate. Use DisplayPort or HDMI 2.0+. You literally cannot SEE more than your refresh rate.'
-        } elseif ($g.CurrentRefreshRate) { Add-F 'INFO' 'Display' "Refresh rate: $($g.CurrentRefreshRate) Hz" '' }
+        } elseif ($g.CurrentRefreshRate -ge 24) { Add-F 'INFO' 'Display' "Refresh rate: $($g.CurrentRefreshRate) Hz" '' }
     }
 
     # HAGS / Game Mode / DVR
@@ -137,7 +137,7 @@ function Get-SBSystemInfo {
         Cpu           = ($cpu.Name -replace '\(R\)|\(TM\)|CPU|Processor|\s+@.*$', '' -replace '\s+', ' ').Trim()
         CpuDetail     = "$($cpu.NumberOfCores) cores / $($cpu.NumberOfLogicalProcessors) threads"
         Gpu           = $(if ($gpu) { $gpu.Name } else { 'Unknown' })
-        GpuDetail     = $(if ($gpu -and $gpu.CurrentRefreshRate) { "$($gpu.CurrentRefreshRate) Hz - driver $($gpu.DriverVersion)" } elseif ($gpu) { "driver $($gpu.DriverVersion)" } else { '' })
+        GpuDetail     = $(if ($gpu -and $gpu.CurrentRefreshRate -ge 24) { "$($gpu.CurrentRefreshRate) Hz - driver $($gpu.DriverVersion)" } elseif ($gpu) { "driver $($gpu.DriverVersion)" } else { '' })
         Ram           = "$ramGB GB"
         RamDetail     = $(if ($speed) { "$($mods.Count) module(s) at $speed MT/s" } else { "$($mods.Count) module(s)" })
         Disk          = $(if ($sys) { "$([math]::Round($sys.FreeSpace/1GB)) GB free" } else { '' })

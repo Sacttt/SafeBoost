@@ -58,6 +58,9 @@ $script:LogTarget   = 'apply'
 $script:Busy        = $false
 $script:LastSession = $null
 $script:Pages       = @('Overview','Tweaks','Apps','Apply','Undo')
+$script:Dot         = ' ' + [char]0x00B7 + ' '
+$script:Dash        = ' ' + [char]0x2014 + ' '
+function Get-Plural([int]$n, [string]$word) { if ($n -eq 1) { "$n $word" } else { "$n ${word}s" } }
 
 $script:Friendly = @{
     'Microsoft.BingNews' = 'Microsoft News'; 'Microsoft.BingWeather' = 'Weather'; 'Microsoft.BingSearch' = 'Bing Search'
@@ -261,7 +264,7 @@ function Show-Overview($Info, $Findings) {
     $order = @{ BIG = 0; WARN = 1; TIP = 2; INFO = 3 }
     $show = @($Findings | Where-Object { $_.Severity -ne 'INFO' } | Sort-Object { $order[$_.Severity] })
     $big = @($show | Where-Object Severity -eq 'BIG').Count
-    $ui.HealthStatus.Text = if ($big) { "$big high-impact item(s) found" } elseif ($show.Count) { "$($show.Count) suggestion(s)" } else { 'Looking good' }
+    $ui.HealthStatus.Text = if ($big) { "$(Get-Plural $big 'high-impact item') found" } elseif ($show.Count) { Get-Plural $show.Count 'suggestion' } else { 'Looking good' }
     if (-not $show.Count) {
         $row = New-Object Windows.Controls.StackPanel; $row.Orientation = 'Horizontal'; $row.Margin = '0,8,0,0'
         [void]$row.Children.Add((New-Glyph -Code 0xE930 -Brush 'SevOkBrush' -Size 16))
@@ -311,7 +314,7 @@ function Build-PresetCards {
         $cnt = if ($d.Id -eq 'Custom') { 'You choose' } else {
             $n = @($script:AllTweaks | Where-Object { $_.Supported -and $_.Presets -contains $d.Id }).Count
             $a = @($script:AppCfg.Bloat).Count + $(if ($d.Id -eq 'Max') { @($script:AppCfg.Extra).Count } else { 0 })
-            "$n tweaks - up to $a apps" }
+            "$n tweaks$($script:Dot)up to $a apps" }
         $ct = New-TB -Text $cnt -Brush 'AccentBrush' -Size 12 -Weight 'SemiBold'; $ct.Margin = '0,10,0,0'; [void]$sp.Children.Add($ct)
         $c.Child = $sp
         $c.Add_MouseLeftButtonUp({ param($s, $e) Set-Preset $s.Tag; Show-Page 'Tweaks' })
@@ -383,6 +386,11 @@ function Set-Preset([string]$Name) {
         if ($k -eq $Name) { Set-Ref $c ([Windows.Controls.Border]::BorderBrushProperty) 'AccentBrush'; $c.BorderThickness = 2; $c.Padding = '15,15' }
         else { Set-Ref $c ([Windows.Controls.Border]::BorderBrushProperty) 'CardBorderBrush'; $c.BorderThickness = 1; $c.Padding = '16,16' }
     }
+    foreach ($pair in @(@('Safe', $ui.BtnPresetSafe), @('Gaming', $ui.BtnPresetGaming), @('Max', $ui.BtnPresetMax))) {
+        $b = $pair[1]
+        if ($pair[0] -eq $Name) { Set-Ref $b ([Windows.Controls.Control]::BorderBrushProperty) 'AccentBrush'; Set-Ref $b ([Windows.Controls.Control]::ForegroundProperty) 'AccentBrush' }
+        else { Set-Ref $b ([Windows.Controls.Control]::BorderBrushProperty) 'CardBorderBrush'; Set-Ref $b ([Windows.Controls.Control]::ForegroundProperty) 'TextBrush' }
+    }
     Build-AppRows
     Update-Summary
 }
@@ -440,9 +448,9 @@ function Build-AppRows {
         $shown++
     }
     if ($null -eq $script:Installed) { $ui.AppsStatus.Text = 'Looking for installed apps...' }
-    else { $ui.AppsStatus.Text = "$installedCount removable app(s) found on this PC" }
+    else { $ui.AppsStatus.Text = "$(Get-Plural $installedCount 'removable app') found on this PC" }
     if ($shown -eq 0) {
-        $t = New-TB -Text 'No removable bloat apps are installed - nice and clean.' -Brush 'SubTextBrush'; $t.Margin = '10,12'
+        $t = New-TB -Text "No removable bloat apps are installed$($script:Dash)nice and clean." -Brush 'SubTextBrush'; $t.Margin = '10,12'
         [void]$ui.AppsGrid.Children.Add($t)
     }
 }
@@ -463,8 +471,8 @@ function Update-Summary {
     $ui.NavTweaksCount.Text = "$($ids.Count)"
     $ui.NavAppsCount.Text = "$($apps.Count)"
     $ui.SumTweaks.Text = "$($ids.Count)"; $ui.SumApps.Text = "$($apps.Count)"; $ui.SumRestart.Text = "$reboot"
-    $ui.SumList.Text = if ($sel.Count) { ($sel | ForEach-Object { $_.Name }) -join '  -  ' } else { 'Nothing selected yet. Pick a preset on the Overview page or tick tweaks.' }
-    $ui.FooterSummary.Text = if ($ids.Count -or $apps.Count) { "$($ids.Count) tweaks and $($apps.Count) apps selected  -  nothing changes until you press Apply" } else { 'Nothing selected yet' }
+    $ui.SumList.Text = if ($sel.Count) { ($sel | ForEach-Object { $_.Name }) -join $script:Dot } else { 'Nothing selected yet. Pick a preset on the Overview page or tick tweaks.' }
+    $ui.FooterSummary.Text = if ($ids.Count -or $apps.Count) { "$(Get-Plural $ids.Count 'tweak') and $(Get-Plural $apps.Count 'app') selected$($script:Dash)nothing changes until you press Apply" } else { 'Nothing selected yet' }
     foreach ($c in $script:TweakCards) {
         $on = @($c.Rows | Where-Object { $_.CB.IsChecked }).Count
         $c.Counter.Text = "$on of $($c.Rows.Count)"
@@ -549,7 +557,7 @@ function Complete-Apply($r, $err) {
     $script:LastSession = $r.SessionDir
     $ui.BtnOpenBackup.Visibility = 'Visible'
     if ($r.DryRun) {
-        $ui.ApplyStatus.Text = 'Preview finished - nothing was changed. Untick "Preview only" to apply for real.'
+        $ui.ApplyStatus.Text = "Preview finished$($script:Dash)nothing was changed. Untick 'Preview only' to apply for real."
     } else {
         $ui.ApplyStatus.Text = "Done: $($s.Applied) changed, $($s.Skipped) already set, $($s.Failed) failed." + $(if ($r.Reboot) { ' Restart to finish.' } else { '' })
         if ($r.Reboot -or $s.Applied) { $ui.BtnRestart.Visibility = 'Visible' }
@@ -580,7 +588,7 @@ function Update-Runs {
         $sp = New-Object Windows.Controls.StackPanel; [Windows.Controls.Grid]::SetColumn($sp, 1)
         [void]$sp.Children.Add((New-TB -Text "$($r.Preset) preset" -Weight 'SemiBold'))
         $when = if ($r.Date) { $r.Date.ToString('MMM d, yyyy  h:mm tt') } else { $r.Name }
-        [void]$sp.Children.Add((New-TB -Text "$when  -  $($r.Count) changes$(if ($r.Apps) { " ($($r.Apps) apps removed)" })" -Brush 'SubTextBrush' -Size 12))
+        [void]$sp.Children.Add((New-TB -Text "$when$($script:Dot)$(Get-Plural $r.Count 'change')$(if ($r.Apps) { "$($script:Dot)$(Get-Plural $r.Apps 'app') removed" })" -Brush 'SubTextBrush' -Size 12))
         [void]$g.Children.Add($sp)
         $pill = if ($r.Undone) { New-Pill -Text 'Undone' -Fg 'SubTextBrush' -Bg 'HoverBrush' } else { New-Pill -Text 'Active' -Fg 'SevOkBrush' -Bg 'SevOkBgBrush' }
         $pill.Margin = '0,0,14,0'; [Windows.Controls.Grid]::SetColumn($pill, 2); [void]$g.Children.Add($pill)
@@ -679,17 +687,12 @@ function Save-SBRender([string]$Path) {
     $window.UpdateLayout()
     $window.Dispatcher.Invoke([action]{ }, [Windows.Threading.DispatcherPriority]::ApplicationIdle)
     $el = $ui.RootBorder
-    if ($el.ActualWidth -lt 100 -or $el.ActualHeight -lt 100) {
-        # Window could not be laid out by the desktop (headless machine) - lay it out ourselves.
-        $size = New-Object Windows.Size 1240, 800
-        $el.Measure($size)
-        $el.Arrange((New-Object Windows.Rect 0, 0, 1240, 800))
-        $el.UpdateLayout()
-        $window.Dispatcher.Invoke([action]{ }, [Windows.Threading.DispatcherPriority]::ApplicationIdle)
-    }
+    # Lay out at a fixed size so images don't depend on the capture machine's screen resolution.
+    $el.Measure((New-Object Windows.Size 1240, 800))
+    $el.Arrange((New-Object Windows.Rect 0, 0, 1240, 800))
     if ($env:GITHUB_ACTIONS) { Write-Host "::notice::Render $([IO.Path]::GetFileName($Path)): $($el.ActualWidth) x $($el.ActualHeight)" }
     $scale = 1.5
-    $rtb = New-Object Windows.Media.Imaging.RenderTargetBitmap ([int]($el.ActualWidth * $scale)), ([int]($el.ActualHeight * $scale)), (96 * $scale), (96 * $scale), ([Windows.Media.PixelFormats]::Pbgra32)
+    $rtb = New-Object Windows.Media.Imaging.RenderTargetBitmap ([int](1240 * $scale)), ([int](800 * $scale)), (96 * $scale), (96 * $scale), ([Windows.Media.PixelFormats]::Pbgra32)
     $rtb.Render($el)
     $enc = New-Object Windows.Media.Imaging.PngBitmapEncoder
     $enc.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($rtb))
@@ -710,6 +713,14 @@ if ($Screenshot) {
     $r = & $script:ApplyWork $script:Root $ids @() @{ Preset = 'Gaming'; DryRun = $true }
     Invoke-Pump
     Complete-Apply @($r)[-1] $null
+    if ($env:SAFEBOOST_CI -eq '1') {
+        # Disposable test machine only: make two real runs so the Backups page shows real history.
+        $safeIds = @($script:AllTweaks | Where-Object { $_.Supported -and $_.Presets -contains 'Safe' } | ForEach-Object { $_.Id })
+        [void](& $script:ApplyWork $script:Root $safeIds @() @{ Preset = 'Safe'; DryRun = $false; RestorePoint = $false })
+        [void](& $script:ApplyWork $script:Root $ids @() @{ Preset = 'Gaming'; DryRun = $false; RestorePoint = $false })
+        $line = $null; while ($script:LogQueue.TryDequeue([ref]$line)) { }
+    }
+    $ui.ChkDryRun.IsChecked = $false
     $global:SBLogQueue = $script:LogQueue
 
     $window.WindowStartupLocation = 'Manual'; $window.Left = 0; $window.Top = 0

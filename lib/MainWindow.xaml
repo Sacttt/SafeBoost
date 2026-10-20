@@ -335,7 +335,7 @@
                 <TextBlock Text="Safe by design" Margin="8,0,0,0" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
               </StackPanel>
               <TextBlock Style="{StaticResource Sub}" FontSize="12" Margin="0,6,0,0"
-                         Text="Restore point and a backup of every value before each run. Undo any time - nothing Windows needs is ever removed."/>
+                         Text="Restore point and a backup of every value before each run. Undo any time &#x2014; nothing Windows needs is ever removed."/>
             </StackPanel>
           </Border>
         </Grid>
@@ -468,11 +468,12 @@
                 <Grid>
                   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
                   <Grid Margin="18,14,18,12">
-                    <StackPanel VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
                       <TextBlock Text="Activity" Style="{StaticResource H2}"/>
                       <TextBlock x:Name="ApplyStatus" Text="Ready when you are." Style="{StaticResource Sub}" FontSize="12" Margin="0,2,0,0"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                       <Button x:Name="BtnOpenBackup" Style="{StaticResource BtnBase}" Content="Open backup folder" Margin="0,0,8,0" Visibility="Collapsed"/>
                       <Button x:Name="BtnRestart" Style="{StaticResource BtnBase}" Content="Restart now" Margin="0,0,8,0" Visibility="Collapsed"/>
                       <Button x:Name="BtnApply" Style="{StaticResource PrimaryBtn}" Padding="20,8">

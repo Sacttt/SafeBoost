@@ -18,6 +18,8 @@ concurrency:
 jobs:
   render:
     runs-on: windows-latest
+    env:
+      SAFEBOOST_CI: '1'
     steps:
       - uses: actions/checkout@v5
       - name: Render app pages
