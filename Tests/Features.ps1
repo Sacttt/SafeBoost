@@ -12,6 +12,7 @@ trap {
 # ---- Startup: create a fake startup entry, disable it, undo, verify exact restore
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $approved = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+if (-not (Test-Path $runKey)) { New-Item -Path $runKey -Force | Out-Null }
 New-ItemProperty -Path $runKey -Name 'SafeBoostTestApp' -Value "`"$env:SystemRoot\notepad.exe`" /background" -PropertyType String -Force | Out-Null
 $before = Get-SBRegValue -Path $approved -Name 'SafeBoostTestApp'
 $item = Get-SBStartupItems | Where-Object Name -eq 'SafeBoostTestApp'
